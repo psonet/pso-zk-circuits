@@ -15,9 +15,11 @@ resolver = "2"
 pso-zk-circuit-noir = { path = "crates/pso-zk-circuit-noir" }
 pso-zk-canonical    = { path = "crates/pso-zk-canonical" }
 
-# Shared consensus-binding primitives. Path-pinned during sibling
-# development; flip to `version = "0.1"` from crates.io once published.
-pso-protocol = { path = "../pso-protocol" }
+# Shared consensus-binding primitives. Tracked against the
+# `main` branch while both repos co-evolve; pin to a specific
+# rev or tag at release time. Flip to `version = "0.1"` from
+# crates.io once `pso-protocol` is published.
+pso-protocol = { git = "ssh://git@github.com/psonet/pso-protocol.git", branch = "main" }
 
 # External
 pso-poseidon = "0.2"

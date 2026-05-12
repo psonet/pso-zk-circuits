@@ -10,13 +10,16 @@ post-extraction layout:
   and witness types (consumed here for type definitions).
 - **`pso-zk-circuits`** — Noir circuit sources + the `noir_rs`-based
   prover/verifier wrapper + canonical descriptors.
-- [`pso-integration`](../pso-integration) — wallets, FFI bindings, CLI.
+- [`pso-integration`](../pso-integration) — client-side integration:
+  UniFFI wallet bindings, SRA registrar, CLI, VDF FFI (planned), and
+  L2-interaction code.
 - [`pso-chain`](../pso-chain) — PSO L2 chain (calls into this crate's
   `derive_canonical_keccak_vk` from `xtask regenerate-canonical`).
 
 This repo absorbs the circuit half of the legacy `pso-zk-proof`
 workspace. The integration half (mobile/SRA UniFFI, CLI, NFT domain
-types) lives in `pso-integration`.
+types, plus the VDF FFI and L2 RPC code coming next) lives in
+`pso-integration`.
 
 ## Why split it out
 
