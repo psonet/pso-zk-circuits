@@ -21,7 +21,7 @@ use noir_rs::barretenberg::verify::{
 use noir_rs::witness::from_vec_to_witness_map;
 use noir_rs::{AcirField, FieldElement};
 
-use pso_protocol::witness::{AggregationWitness, FullProofWitness, OwnershipWitness};
+use pso_protocol::witness::{FullProofWitness, OwnershipWitness};
 
 /// Compiled Noir circuit bytecode and its content hash.
 pub struct CircuitBytecode {
@@ -343,9 +343,9 @@ impl NoirFullProofCircuit {
             &witness.public_inputs.ownership.ownership,
         ));
 
-        // nft_hash (entity_hash) as pub Field
+        // nft_hash as pub Field — lives inside ownership now.
         witness_vec.push(FieldElement::from_le_bytes_reduce(
-            &witness.public_inputs.entity_hash,
+            &witness.public_inputs.ownership.nft_hash,
         ));
 
         // expected_merkle_root as pub Field
@@ -444,178 +444,68 @@ impl ZKCircuit<NoirCircuitConfig, NoirProof> for NoirOwnershipCircuit {
 }
 
 impl NoirOwnershipCircuit {
-    /// Create a witness map for the ownership-only circuit.
+    /// Create a witness map for the §4.2 ownership-only circuit.
     ///
-    /// Circuit main() signature:
-    ///     nonce: Field,
-    ///     pk_x_bytes: [u8; 32],
-    ///     pk_y_bytes: [u8; 32],
-    ///     signature: [u8; 64],
-    ///     expected_ownership: pub Field,
+    /// Circuit `main()` parameter order (must match
+    /// `pso-ownership-circuit/src/main.nr`):
     ///
-    /// Total: 129 elements (128 private + 1 public).
+    /// ```text
+    /// pk_x_bytes  : [u8; 32]      // private
+    /// pk_y_bytes  : [u8; 32]      // private
+    /// signature   : [u8; 64]      // private
+    /// nonce       : Field         // private
+    /// owner       : pub Field
+    /// nft_hash    : pub Field
+    /// ```
+    ///
+    /// Total: 130 elements (128 private bytes + 1 nonce + 2 public).
     fn create_ownership_witness_map(
         witness: &OwnershipWitness,
     ) -> Result<WitnessMap<FieldElement>, Error> {
         let mut witness_vec = Vec::new();
 
+        // pk_x_bytes as [u8; 32]
+        for &byte in witness.private_inputs.public_key_x.iter() {
+            witness_vec.push(FieldElement::from(byte as u32));
+        }
+        // pk_y_bytes as [u8; 32]
+        for &byte in witness.private_inputs.public_key_y.iter() {
+            witness_vec.push(FieldElement::from(byte as u32));
+        }
+        // signature as [u8; 64] (private — signing key for
+        // Poseidon2(nft_hash, nonce) per §4.2)
+        for &byte in witness.public_inputs.signature.iter() {
+            witness_vec.push(FieldElement::from(byte as u32));
+        }
         // nonce as Field
         witness_vec.push(FieldElement::from_le_bytes_reduce(
             &witness.private_inputs.nonce,
         ));
 
-        // pk_x_bytes as [u8; 32]
-        let public_key_x = witness
-            .private_inputs
-            .public_key_x
-            .iter()
-            .map(|byte| FieldElement::from(*byte as u32));
-        witness_vec.extend(public_key_x);
-
-        // pk_y_bytes as [u8; 32]
-        let public_key_y = witness
-            .private_inputs
-            .public_key_y
-            .iter()
-            .map(|byte| FieldElement::from(*byte as u32));
-        witness_vec.extend(public_key_y);
-
-        // signature as [u8; 64]
-        let signature = witness
-            .public_inputs
-            .signature
-            .iter()
-            .map(|byte| FieldElement::from(*byte as u32));
-        witness_vec.extend(signature);
-
-        // expected_ownership as pub Field
+        // owner as pub Field
         witness_vec.push(FieldElement::from_le_bytes_reduce(
             &witness.public_inputs.ownership,
+        ));
+        // nft_hash as pub Field
+        witness_vec.push(FieldElement::from_le_bytes_reduce(
+            &witness.public_inputs.nft_hash,
         ));
 
         from_vec_to_witness_map(witness_vec).map_err(Error::msg)
     }
 }
 
-// -- SU-ownership aggregation circuit --------------------------------- //
-
-/// Wraps prove/verify for one of the tiered
-/// `pso.su_ownership_aggregation.n{1,2,4,6,8,16,32,64}` circuits.
-///
-/// Unlike `NoirOwnershipCircuit` / `NoirFullProofCircuit`, this circuit
-/// is not driven by an NFT type (aggregation isn't "owning one entity"
-/// — it's "knowing one keypair that owns N derived hashes"). It also
-/// MUST verify against the canonical VK from `pso-zk-canonical` rather
-/// than a freshly-derived one, so the proof bytes a wallet produces
-/// match what the on-chain `zk_verify` precompile accepts.
-///
-/// Construct one instance per tier via [`Self::new`]; reuse it across
-/// prove calls.
-pub struct NoirSuOwnershipAggregationCircuit {
-    bytecode: String,
-    /// Tier slot count (1..=64). Must equal the compile-time `N` of
-    /// the underlying Noir circuit.
-    tier_n: u32,
-    /// Canonical VK bytes, sourced from
-    /// `pso_zk_canonical::SU_OWNERSHIP_AGGREGATION_N*.vk_bytes`.
-    canonical_vk: Vec<u8>,
-    /// SRS handle kept alive for the lifetime of the circuit instance.
-    _srs: u32,
-}
-
-impl NoirSuOwnershipAggregationCircuit {
-    /// Initialize the circuit. Performs SRS setup once; subsequent
-    /// `prove` calls reuse it.
-    pub fn new(bytecode: String, tier_n: u32, canonical_vk: Vec<u8>) -> anyhow::Result<Self> {
-        let srs = setup_srs_from_bytecode(&bytecode, None, false).map_err(Error::msg)?;
-        Ok(Self {
-            bytecode,
-            tier_n,
-            canonical_vk,
-            _srs: srs,
-        })
-    }
-
-    /// Generate a proof for the given witness, bound to the canonical
-    /// VK so the resulting proof bytes verify against
-    /// `pso_zk_canonical::SU_OWNERSHIP_AGGREGATION_N*.vk_bytes` on the
-    /// chain side.
-    pub fn prove(&self, witness: &AggregationWitness) -> anyhow::Result<NoirProof> {
-        if witness.private_inputs.nonces.len() != self.tier_n as usize {
-            return Err(Error::msg(format!(
-                "witness has {} nonces but tier_n is {}",
-                witness.private_inputs.nonces.len(),
-                self.tier_n,
-            )));
-        }
-        if witness.public_inputs.derived_owners.len() != self.tier_n as usize {
-            return Err(Error::msg(format!(
-                "witness has {} derived_owners but tier_n is {}",
-                witness.public_inputs.derived_owners.len(),
-                self.tier_n,
-            )));
-        }
-
-        let witness_map = Self::build_witness_map(witness)?;
-
-        let combined_proof = prove_ultra_honk_keccak(
-            &self.bytecode,
-            witness_map,
-            self.canonical_vk.clone(),
-            false,
-            false,
-            None,
-        )
-        .map_err(Error::msg)?;
-
-        let (public_inputs, proof_bytes) = split_proof(&combined_proof).map_err(Error::msg)?;
-        Ok(NoirProof {
-            proof: proof_bytes,
-            public_inputs,
-        })
-    }
-
-    /// Verify a proof against the canonical VK. The same call the
-    /// on-chain `zk_verify` precompile makes under the
-    /// `noir-verify` cargo feature.
-    pub fn verify(&self, proof: NoirProof) -> anyhow::Result<bool> {
-        let combined = proof.to_noir_proof();
-        verify_ultra_honk_keccak(combined, self.canonical_vk.clone(), false).map_err(Error::msg)
-    }
-
-    /// Flatten the witness into the `WitnessMap` in the order
-    /// `main()` declares its parameters:
-    ///
-    ///   pk_x_bytes[32], pk_y_bytes[32], nonces[N], signature[64],
-    ///   derived_owners[N], binding_hash
-    ///
-    /// Bytes are mapped to one Field each (as u32); Fr values come
-    /// from their LE byte encoding.
-    fn build_witness_map(witness: &AggregationWitness) -> Result<WitnessMap<FieldElement>, Error> {
-        let mut w: Vec<FieldElement> = Vec::new();
-
-        for b in witness.private_inputs.public_key_x.iter() {
-            w.push(FieldElement::from(*b as u32));
-        }
-        for b in witness.private_inputs.public_key_y.iter() {
-            w.push(FieldElement::from(*b as u32));
-        }
-        for nonce in &witness.private_inputs.nonces {
-            w.push(FieldElement::from_le_bytes_reduce(nonce.as_slice()));
-        }
-        for b in witness.private_inputs.signature.iter() {
-            w.push(FieldElement::from(*b as u32));
-        }
-        for d in &witness.public_inputs.derived_owners {
-            w.push(FieldElement::from_le_bytes_reduce(d.as_slice()));
-        }
-        w.push(FieldElement::from_le_bytes_reduce(
-            witness.public_inputs.binding_hash.as_slice(),
-        ));
-
-        from_vec_to_witness_map(w).map_err(Error::msg)
-    }
-}
+// -- Recursive aggregation circuit (pending) --------------------------- //
+//
+// The Rust wrapper for `pso-recursive-aggregation-circuit-n*` lands
+// once the canonical regeneration step has compiled the tier
+// circuits, producing the `UltraHonkProof` byte layout we need to
+// route through the witness map. Until then, callers should rely on
+// the higher-level `pso_l2_client::wallet` API which surfaces
+// `L2ClientError::CircuitNotAvailable` for the prover step.
+//
+// See `docs/aggregation-redesign.md` in psonet/pso-integration for
+// the design + the per-slot public-input layout.
 
 /// Derive the canonical UltraHonkKeccak verification key for a
 /// compiled Noir circuit, via the noir_rs FFI.
@@ -705,10 +595,10 @@ mod tests {
     // -- Test-local NFT that does not depend on any domain crate --
 
     /// Minimal NFT implementation for circuit testing.
-    /// Uses random `entity_hash` since the circuit does not verify the hash formula.
+    /// Uses random `nft_hash` since the circuit does not verify the hash formula.
     struct TestNFT {
         ownership: Fr,
-        entity_hash: Fr,
+        nft_hash: Fr,
     }
 
     impl OwnableNFT for TestNFT {
@@ -719,7 +609,7 @@ mod tests {
 
     impl HashableNFT for TestNFT {
         fn hash(&self) -> Result<Fr, pso_protocol::ProtocolError> {
-            Ok(self.entity_hash)
+            Ok(self.nft_hash)
         }
     }
 
@@ -733,7 +623,7 @@ mod tests {
         let nonce = Fr::rand(&mut OsRng);
 
         let ownership = testing::ownership_from_secret_key(&secret_key, nonce).unwrap();
-        let entity_hash = Fr::rand(&mut OsRng);
+        let nft_hash = Fr::rand(&mut OsRng);
 
         let merkle_depth = 6;
         let mut merkle_path = Vec::with_capacity(merkle_depth);
@@ -753,7 +643,7 @@ mod tests {
 
         let nft = TestNFT {
             ownership,
-            entity_hash,
+            nft_hash,
         };
         (nft, secret_key, nonce, merkle_path)
     }
@@ -766,7 +656,8 @@ mod tests {
         let nonce = FieldElement::from_le_bytes_reduce(&witness.private_inputs.ownership.nonce);
         let expected_ownership =
             FieldElement::from_le_bytes_reduce(&witness.public_inputs.ownership.ownership);
-        let nft_hash = FieldElement::from_le_bytes_reduce(&witness.public_inputs.entity_hash);
+        let nft_hash =
+            FieldElement::from_le_bytes_reduce(&witness.public_inputs.ownership.nft_hash);
         let expected_merkle_root =
             FieldElement::from_le_bytes_reduce(&witness.public_inputs.merkle_root);
 

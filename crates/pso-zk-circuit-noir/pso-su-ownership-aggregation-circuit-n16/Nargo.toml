@@ -1,8 +1,0 @@
-[package]
-name = "su_ownership_aggregation_n16"
-type = "bin"
-authors = ["outbe"]
-compiler_version = ">=0.34.0"
-
-[dependencies]
-pso_circuit_core = { path = "../pso-circuit-core" }

@@ -1,10 +1,12 @@
 // Shared library for ZK proof circuits.
 // Modules:
-// - `ownership`: single (pk, nonce) -> Poseidon ownership hash + ECDSA.
+// - `ownership`: §4.2 single-NFT ownership proof helpers — Poseidon5
+//   owner commitment + ECDSA over Poseidon2(nft_hash, nonce).
 // - `inclusion`: Merkle inclusion path verification.
-// - `aggregation`: N-SU ownership aggregation under one keypair, used
-//   by the per-tier `pso-su-ownership-aggregation-circuit-n*` bins.
+// - `recursion`: helper for the `pso-recursive-aggregation-circuit-n*`
+//   tier bins to fold N inner ownership proofs into one recursive
+//   proof via the bb_proof_verification primitive.
 
 pub mod ownership;
 pub mod inclusion;
-pub mod aggregation;
+pub mod recursion;

@@ -101,7 +101,7 @@ fn format_bytes(bytes: usize) -> String {
 
 struct BenchNFT {
     ownership: Fr,
-    entity_hash: Fr,
+    nft_hash: Fr,
 }
 
 impl OwnableNFT for BenchNFT {
@@ -112,7 +112,7 @@ impl OwnableNFT for BenchNFT {
 
 impl HashableNFT for BenchNFT {
     fn hash(&self) -> Result<Fr, pso_protocol::ProtocolError> {
-        Ok(self.entity_hash)
+        Ok(self.nft_hash)
     }
 }
 
@@ -126,7 +126,7 @@ fn make_bench_nft() -> (BenchNFT, SecretKey, Fr, Vec<MerklePathElement>) {
     let secret_key = random_secret_key();
     let nonce = Fr::rand(&mut OsRng);
     let ownership = testing::ownership_from_secret_key(&secret_key, nonce).unwrap();
-    let entity_hash = Fr::rand(&mut OsRng);
+    let nft_hash = Fr::rand(&mut OsRng);
 
     let mut merkle_path = Vec::with_capacity(6);
     for _ in 0..6 {
@@ -144,7 +144,7 @@ fn make_bench_nft() -> (BenchNFT, SecretKey, Fr, Vec<MerklePathElement>) {
     (
         BenchNFT {
             ownership,
-            entity_hash,
+            nft_hash,
         },
         secret_key,
         nonce,

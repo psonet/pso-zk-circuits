@@ -13,6 +13,12 @@
 //! it were any downstream consumer — can use it without Cargo gymnastics.
 //! Production proving paths never call into this module; the cost is
 //! negligible next to barretenberg-rs in the same dependency tree.
+//!
+//! The witness builders here match the §4.2 privacy-preserving L2
+//! spec: signature is over `Poseidon2(nft_hash, nonce)`, and
+//! `nft_hash` lives inside `OwnershipPublicInputs` (no duplicate
+//! `entity_hash` at the outer level). Same semantics as
+//! `pso_integrations_shared::witness::*`.
 
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
@@ -23,7 +29,6 @@ use k256::SecretKey;
 
 use pso_protocol::merkle::MerklePathElement;
 use pso_protocol::witness::{
-    AggregationPrivateInputs, AggregationPublicInputs, AggregationSlot, AggregationWitness,
     FullProofPrivateInputs, FullProofPublicInputs, FullProofWitness, HashableNFT, OwnableNFT,
     OwnershipPrivateInputs, OwnershipPublicInputs, OwnershipWitness,
 };
@@ -71,13 +76,14 @@ pub fn sign_prehash_le(secret_key: &SecretKey, digest: &Fr) -> anyhow::Result<[u
 }
 
 // --------------------------------------------------------------------- //
-// Witness builders (formerly `OwnableNFT::generate_witness` blanket impls
-// in `pso-zk-core::witness`).
+// Witness builders. Match the §4.2 semantics shared with
+// `pso_integrations_shared::witness::*` — the signature payload is
+// `Poseidon2(nft_hash, nonce)`, and `nft_hash` lives inside
+// `OwnershipPublicInputs`.
 // --------------------------------------------------------------------- //
 
-/// Build an `OwnershipWitness` from any `OwnableNFT` plus a key
-/// material context.
-pub fn build_ownership_witness<T: OwnableNFT>(
+/// Build an `OwnershipWitness` per §4.2.
+pub fn build_ownership_witness<T: OwnableNFT + HashableNFT>(
     nft: &T,
     secret_key: &SecretKey,
     nonce: Fr,
@@ -85,8 +91,15 @@ pub fn build_ownership_witness<T: OwnableNFT>(
     let (public_key_x, public_key_y) = sec1_coords(secret_key);
     let ownership_fr = nft.ownership();
     let ownership = fr_to_le32(&ownership_fr);
-    let signature = sign_prehash_le(secret_key, &ownership_fr)?;
     let nonce_bytes = fr_to_le32(&nonce);
+
+    let nft_hash_fr = nft.hash().map_err(|e| anyhow::anyhow!("nft hash: {e}"))?;
+    let nft_hash = fr_to_le32(&nft_hash_fr);
+
+    // Sign Poseidon2(nft_hash, nonce) per §4.2.
+    let prehash_fr = pso_protocol::hash::poseidon2(nft_hash_fr, nonce)
+        .map_err(|e| anyhow::anyhow!("poseidon2(nft_hash, nonce): {e}"))?;
+    let signature = sign_prehash_le(secret_key, &prehash_fr)?;
 
     Ok(OwnershipWitness {
         private_inputs: OwnershipPrivateInputs {
@@ -96,12 +109,15 @@ pub fn build_ownership_witness<T: OwnableNFT>(
         },
         public_inputs: OwnershipPublicInputs {
             ownership,
+            nft_hash,
             signature,
         },
     })
 }
 
-/// Build a `FullProofWitness` from any `OwnableNFT + HashableNFT`.
+/// Build a `FullProofWitness` per §4.2 — same ownership semantics as
+/// [`build_ownership_witness`], composed with a Merkle inclusion
+/// against the same `nft_hash`.
 pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
     nft: &T,
     secret_key: &SecretKey,
@@ -111,16 +127,17 @@ pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
     let (public_key_x, public_key_y) = sec1_coords(secret_key);
     let ownership_fr = nft.ownership();
     let ownership = fr_to_le32(&ownership_fr);
-    let signature = sign_prehash_le(secret_key, &ownership_fr)?;
     let nonce_bytes = fr_to_le32(&nonce);
 
-    let entity_hash_fr = nft
-        .hash()
-        .map_err(|e| anyhow::anyhow!("entity hash: {e}"))?;
-    let entity_hash = fr_to_le32(&entity_hash_fr);
+    let nft_hash_fr = nft.hash().map_err(|e| anyhow::anyhow!("nft hash: {e}"))?;
+    let nft_hash = fr_to_le32(&nft_hash_fr);
+
+    let prehash_fr = pso_protocol::hash::poseidon2(nft_hash_fr, nonce)
+        .map_err(|e| anyhow::anyhow!("poseidon2(nft_hash, nonce): {e}"))?;
+    let signature = sign_prehash_le(secret_key, &prehash_fr)?;
 
     let merkle_root_fr = pso_protocol::merkle::compute_merkle_root(
-        &entity_hash_fr,
+        &nft_hash_fr,
         merkle_path,
         pso_protocol::merkle::SPARSE_MERKLE_PATH_DEPTH,
     )
@@ -139,64 +156,17 @@ pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
         public_inputs: FullProofPublicInputs {
             ownership: OwnershipPublicInputs {
                 ownership,
+                nft_hash,
                 signature,
             },
-            entity_hash,
             merkle_root,
         },
     })
 }
 
-/// Build the SU-ownership aggregation witness.
-///
-/// `tier_n` is the compile-time slot count of the target circuit. Real
-/// slots are filled from `real_slots`; the rest are zero-padded
-/// (nonce = 0, derived_owner = 0). The circuit's ownership-check
-/// trivializes for zero `derived_owner` slots.
-///
-/// `binding_hash` is the wallet's pre-computed
-/// `pso_protocol::binding::compute_binding_hash(...)` for the
-/// TributeDraft being submitted.
-pub fn build_aggregation_witness(
-    secret_key: &SecretKey,
-    real_slots: &[AggregationSlot],
-    tier_n: u32,
-    binding_hash: Fr,
-) -> anyhow::Result<AggregationWitness> {
-    if (real_slots.len() as u32) > tier_n {
-        anyhow::bail!(
-            "real slot count {} exceeds tier size {}",
-            real_slots.len(),
-            tier_n,
-        );
-    }
-
-    let (public_key_x, public_key_y) = sec1_coords(secret_key);
-
-    let n = tier_n as usize;
-    let mut nonces: Vec<[u8; 32]> = Vec::with_capacity(n);
-    let mut derived_owners: Vec<[u8; 32]> = Vec::with_capacity(n);
-    for slot in real_slots {
-        nonces.push(fr_to_le32(&slot.nonce));
-        derived_owners.push(fr_to_le32(&slot.derived_owner));
-    }
-    while nonces.len() < n {
-        nonces.push([0u8; 32]);
-        derived_owners.push([0u8; 32]);
-    }
-
-    let signature = sign_prehash_le(secret_key, &binding_hash)?;
-
-    Ok(AggregationWitness {
-        private_inputs: AggregationPrivateInputs {
-            public_key_x,
-            public_key_y,
-            nonces,
-            signature,
-        },
-        public_inputs: AggregationPublicInputs {
-            derived_owners,
-            binding_hash: fr_to_le32(&binding_hash),
-        },
-    })
-}
+// The old `build_aggregation_witness` is removed — the
+// `NoirSuOwnershipAggregationCircuit` it served has been replaced by
+// the recursive aggregation circuit family
+// (`pso-recursive-aggregation-circuit-n*`), which folds N per-SU
+// ownership proofs into one recursive proof. See
+// `docs/aggregation-redesign.md` in psonet/pso-integration.

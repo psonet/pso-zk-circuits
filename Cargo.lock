@@ -2392,6 +2392,7 @@ dependencies = [
 [[package]]
 name = "pso-protocol"
 version = "0.1.0"
+source = "git+ssh://git@github.com/psonet/pso-protocol.git?branch=main#4a33be949cba2492d5db7d8bc9d58b2f20fb6dce"
 dependencies = [
  "ark-bn254",
  "ark-ff",

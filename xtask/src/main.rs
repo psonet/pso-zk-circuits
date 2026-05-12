@@ -94,56 +94,59 @@ const CIRCUITS: &[CircuitDef] = &[
         dir: "pso-ownership-circuit",
         output_file: "ownership_proof.json",
     },
-    // SU-ownership aggregation tiers. Same source body, different
-    // compile-time `N`. Used by the on-chain TributeDraft submission
-    // gate (privacy-preserving L2 architecture).
+    // Recursive aggregation tiers. Each verifies N inner per-SU
+    // ownership proofs in-circuit via the Noir recursion pattern
+    // (`bb_proof_verification::verify_honk_proof_non_zk`). Same
+    // source body, different compile-time `N`. Used by the on-chain
+    // TributeDraft submission gate (§5.2 of the privacy-preserving
+    // L2 architecture).
     CircuitDef {
-        name: "su ownership aggregation N=1",
-        dir: "pso-su-ownership-aggregation-circuit-n1",
-        output_file: "su_ownership_aggregation_n1.json",
+        name: "recursive aggregation N=1",
+        dir: "pso-recursive-aggregation-circuit-n1",
+        output_file: "recursive_aggregation_n1.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=2",
-        dir: "pso-su-ownership-aggregation-circuit-n2",
-        output_file: "su_ownership_aggregation_n2.json",
+        name: "recursive aggregation N=2",
+        dir: "pso-recursive-aggregation-circuit-n2",
+        output_file: "recursive_aggregation_n2.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=4",
-        dir: "pso-su-ownership-aggregation-circuit-n4",
-        output_file: "su_ownership_aggregation_n4.json",
+        name: "recursive aggregation N=4",
+        dir: "pso-recursive-aggregation-circuit-n4",
+        output_file: "recursive_aggregation_n4.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=6",
-        dir: "pso-su-ownership-aggregation-circuit-n6",
-        output_file: "su_ownership_aggregation_n6.json",
+        name: "recursive aggregation N=6",
+        dir: "pso-recursive-aggregation-circuit-n6",
+        output_file: "recursive_aggregation_n6.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=8",
-        dir: "pso-su-ownership-aggregation-circuit-n8",
-        output_file: "su_ownership_aggregation_n8.json",
+        name: "recursive aggregation N=8",
+        dir: "pso-recursive-aggregation-circuit-n8",
+        output_file: "recursive_aggregation_n8.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=16",
-        dir: "pso-su-ownership-aggregation-circuit-n16",
-        output_file: "su_ownership_aggregation_n16.json",
+        name: "recursive aggregation N=16",
+        dir: "pso-recursive-aggregation-circuit-n16",
+        output_file: "recursive_aggregation_n16.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=32",
-        dir: "pso-su-ownership-aggregation-circuit-n32",
-        output_file: "su_ownership_aggregation_n32.json",
+        name: "recursive aggregation N=32",
+        dir: "pso-recursive-aggregation-circuit-n32",
+        output_file: "recursive_aggregation_n32.json",
     },
     CircuitDef {
-        name: "su ownership aggregation N=64",
-        dir: "pso-su-ownership-aggregation-circuit-n64",
-        output_file: "su_ownership_aggregation_n64.json",
+        name: "recursive aggregation N=64",
+        dir: "pso-recursive-aggregation-circuit-n64",
+        output_file: "recursive_aggregation_n64.json",
     },
 ];
 
-/// If `dir` matches the SU-ownership aggregation tier pattern, return
+/// If `dir` matches the recursive-aggregation tier pattern, return
 /// the tier `N`. Used by `circuit_short_name` / `circuit_const_ident` /
 /// `circuit_label` so we don't repeat the 8 mappings three times.
 fn aggregation_tier_n(dir: &str) -> Option<u32> {
-    dir.strip_prefix("pso-su-ownership-aggregation-circuit-n")
+    dir.strip_prefix("pso-recursive-aggregation-circuit-n")
         .and_then(|s| s.parse::<u32>().ok())
 }
 
@@ -657,7 +660,7 @@ fn circuit_short_name(c: &CircuitDef) -> String {
         "pso-full-circuit" => "full_proof".to_string(),
         other => {
             if let Some(n) = aggregation_tier_n(other) {
-                format!("su_ownership_aggregation_n{n}")
+                format!("recursive_aggregation_n{n}")
             } else {
                 panic!("unmapped circuit dir: {other}")
             }
@@ -671,7 +674,7 @@ fn circuit_const_ident(c: &CircuitDef) -> String {
         "pso-full-circuit" => "FULL_PROOF".to_string(),
         other => {
             if let Some(n) = aggregation_tier_n(other) {
-                format!("SU_OWNERSHIP_AGGREGATION_N{n}")
+                format!("RECURSIVE_AGGREGATION_N{n}")
             } else {
                 panic!("unmapped circuit dir: {other}")
             }
@@ -685,7 +688,7 @@ fn circuit_label(c: &CircuitDef) -> String {
         "pso-full-circuit" => "pso.full_proof".to_string(),
         other => {
             if let Some(n) = aggregation_tier_n(other) {
-                format!("pso.su_ownership_aggregation.n{n}")
+                format!("pso.recursive_aggregation.n{n}")
             } else {
                 panic!("unmapped circuit dir: {other}")
             }
