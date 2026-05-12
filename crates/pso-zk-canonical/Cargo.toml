@@ -1,0 +1,17 @@
+[package]
+name        = "pso-zk-canonical"
+version     = "0.1.0"
+edition     = "2021"
+description = "Canonical PSO Noir circuit descriptors — circuit_hash, VK bytes, vk_hash, label. Authoritative on-chain identity source for the privacy-preserving L2 zk_verify precompile."
+license     = "Apache-2.0"
+repository  = "https://github.com/psonet/pso-zk-proof"
+
+[dependencies]
+hex-literal = "0.4"
+
+# Intentionally no FFI / no_std-compatible. This crate ships pure
+# static data so any consumer — including `pso-chain` (chain binary),
+# Solidity test fixtures, embedded auditors — can link it cheaply.
+#
+# Heavy work (compiling circuits, deriving VKs) lives in the
+# `xtask regenerate-canonical` command in this workspace.

@@ -1,0 +1,91 @@
+# `pso-zk-canonical`
+
+Authoritative source-of-truth for PSO L2 canonical Noir circuit
+descriptors. Pure static data; **no FFI, `no_std`-compatible**.
+
+Consumers:
+- `pso-chain` — wraps each `CircuitDescriptor` with chain-policy
+  timing (`activated_at_block` / `deprecated_at_block`) and uses
+  this to gate proof acceptance in the `zk_verify` precompile.
+- Solidity test fixtures / audit tooling — can link this to get
+  the canonical VK bytes and circuit hashes without any FFI.
+
+## Versioning model
+
+**Append-only.** Existing descriptors are never modified — that
+would break consensus on what bytes are canonical. New circuit
+revisions (different source code ⇒ different ACIR ⇒ different
+`circuit_hash`) get appended as new descriptors.
+
+Crate version bumps follow:
+- **Patch** (0.1.x → 0.1.y) for bug fixes, label/version-string
+  tweaks, doc changes — no descriptor changes
+- **Minor** (0.x.y → 0.(x+1).0) for appended descriptors
+- **Major** (x.y.z → (x+1).0.0) is reserved for breaking changes
+  to `CircuitDescriptor` shape (would require coordinated
+  `pso-chain` migration)
+
+## Regenerate
+
+After modifying a circuit under `crates/pso-zk-circuit-noir/`:
+
+```bash
+cargo run --package xtask -- regenerate-canonical
+```
+
+That command (TODO: implement in xtask):
+1. Runs `nargo compile` on every entry in `xtask::CIRCUITS`
+2. Reads the compiled `<name>.json` artifact (base64 ACIR)
+3. Computes `circuit_hash = keccak256(base64_decode(acir))`
+4. Calls `noir_rs::barretenberg::verify::get_ultra_honk_keccak_verification_key`
+   to derive the UltraHonkKeccak VK
+5. Writes `vk_bytes` to `res/vks/<circuit_label>.vk`
+6. Computes `vk_hash = keccak256(vk_bytes)`
+7. Regenerates `src/lib.rs` const declarations + appends to
+   `ALL_CIRCUITS`
+
+### CI gate
+
+```bash
+cargo run --package xtask -- regenerate-canonical --check
+```
+
+Fails if regeneration would produce a diff vs committed state.
+Catches:
+- Circuit source changed without regenerating
+- Manually-edited `.vk` files or hash constants
+- SRS drift
+
+## Consuming from `pso-chain`
+
+```toml
+# pso-chain/Cargo.toml
+[dependencies]
+pso-zk-canonical = { git = "https://github.com/psonet/pso-zk-proof", tag = "pso-zk-canonical-v0.1.0" }
+```
+
+```rust
+// pso-chain/src/zk/circuits.rs
+use pso_zk_canonical::{CircuitDescriptor, SU_OWNERSHIP, TD_OWNERSHIP};
+
+pub struct CanonicalCircuit {
+    pub descriptor: &'static CircuitDescriptor,
+    pub activated_at_block:  u64,
+    pub deprecated_at_block: Option<u64>,
+}
+
+pub const CANONICAL_CIRCUITS: &[CanonicalCircuit] = &[
+    CanonicalCircuit {
+        descriptor:          &SU_OWNERSHIP,
+        activated_at_block:  0,
+        deprecated_at_block: None,
+    },
+    // ...
+];
+```
+
+## Design
+
+See `docs/issues/zk-circuit-table-and-rollout.md` in the `pso-chain`
+repo for the full spec (rolling-upgrade procedure, emergency response,
+precompile ABIs, etc.).

@@ -1,0 +1,45 @@
+[package]
+name = "pso-zk-circuit-noir"
+version = "0.1.0"
+edition = "2021"
+description = "Noir circuit implementation for ZK proofs - ownership and Merkle inclusion"
+
+[dependencies]
+# Witness types, hash formulas, and consensus-binding primitives.
+pso-protocol = { workspace = true }
+
+# Noir integration via noir-rs (optional, requires long compilation)
+noir_rs = { git = "https://github.com/zkpassport/noir_rs", tag = "v1.0.0-beta.20-1", features = ["barretenberg"] }
+barretenberg-rs = { workspace = true }
+anyhow.workspace = true
+# Hex encoding for bytecode
+bs58.workspace = true
+
+serde_json.workspace = true
+
+# The k256 + ark stack is needed by the `testing` module (which builds
+# witnesses from real keypairs). It's a pub mod, not feature-gated,
+# because the integration tests and benches in this crate use it and
+# Cargo doesn't offer a clean way to expose a `cfg(test)` module to
+# `tests/*.rs`. Runtime cost is negligible next to barretenberg-rs.
+k256       = { workspace = true }
+ark-ff     = { workspace = true }
+ark-bn254  = { workspace = true }
+
+[dev-dependencies]
+rand.workspace = true
+criterion = { version = "0.5", features = ["html_reports"] }
+# Canonical descriptors (circuit_hash + canonical VK bytes). Used by
+# the aggregation integration tests so they verify against the same
+# VK that the on-chain `zk_verify` precompile consumes.
+pso-zk-canonical.workspace = true
+
+[[bench]]
+name = "proof_perf"
+harness = false
+
+[features]
+# Enable round-trip tests for tier sizes N >= 4. Default off because
+# each tier prove+verify takes tens of seconds (N=64 several minutes)
+# under barretenberg, which would balloon a normal `cargo test` run.
+aggregation-full-tiers = []
