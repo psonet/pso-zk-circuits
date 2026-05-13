@@ -26,6 +26,14 @@ pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 // tiers (1, 2, 4, 8, 16, 32, 64); [`flat_aggregation_json`] mirrors
 // that set and returns `None` for any other input so a typo in the
 // caller surfaces at compile/lookup time instead of as a panic.
+/// Full proof (ownership + Merkle inclusion) circuit JSON. Same
+/// reasoning as the flat-aggregation exports below — embed here
+/// so the path stays crate-relative.
+pub const FULL_PROOF_JSON: &str = include_str!("../data/full_proof.json");
+
+/// Standalone per-NFT ownership-proof circuit JSON.
+pub const OWNERSHIP_PROOF_JSON: &str = include_str!("../data/ownership_proof.json");
+
 pub const FLAT_AGGREGATION_N1_JSON: &str =
     include_str!("../data/flat_aggregation_n1.json");
 pub const FLAT_AGGREGATION_N2_JSON: &str =
