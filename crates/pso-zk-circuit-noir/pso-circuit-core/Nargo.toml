@@ -2,15 +2,13 @@
 name = "pso_circuit_core"
 type = "lib"
 authors = ["outbe"]
-# Bumped to 1.0.0 — `bb_proof_verification` requires Noir 1.x. The
-# noir_rs Rust prover (v1.0.0-beta.20-1) already lives on this
-# compiler family.
 compiler_version = ">=1.0.0"
 
 [dependencies]
+# ZK-friendly Poseidon for owner commitments and binding pre-hash.
 poseidon = { tag = "v0.3.0", git = "https://github.com/noir-lang/poseidon" }
-# In-circuit Honk proof verification. Used by the `recursion` module
-# to fold N per-SU ownership proofs into one recursive aggregation
-# proof — see PDF §5.2 and `docs/aggregation-redesign.md` in
-# psonet/pso-integration.
-bb_proof_verification = { tag = "v4.1.1", git = "https://github.com/AztecProtocol/aztec-packages", directory = "barretenberg/noir/bb_proof_verification" }
+# Grumpkin Schnorr signature verification (Aztec's noir-lang/schnorr).
+# Uses Noir's `embedded_curve_ops` foreign call for native arithmetic
+# on Grumpkin (no field emulation; ~5-6k constraints per verify, vs
+# ~42k for the previous secp256k1 ECDSA path).
+schnorr = { tag = "v0.2.0", git = "https://github.com/noir-lang/schnorr" }

@@ -59,3 +59,10 @@ codegen-units = 16
 opt-level = 3
 overflow-checks = false
 debug = false
+
+# Local fork of noir_rs with barretenberg-rs bumped to 5.0.0-nightly.20260512.
+# Required so off-chain Schnorr/Grumpkin signing via barretenberg-rs 5.x's
+# `schnorr_construct_signature` shares a single C++ backend with noir_rs's
+# prove path (otherwise the two RPC schemas don't agree).
+[patch."https://github.com/zkpassport/noir_rs"]
+noir_rs = { path = "../vendor/noir_rs" }

@@ -5,6 +5,7 @@
 //! and bytecode loading utilities.
 
 pub mod circuit_traits;
+pub mod schnorr_grumpkin;
 pub mod testing;
 pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 
@@ -111,7 +112,7 @@ impl Proof for NoirProof {
 ///
 /// # Errors
 /// Returns an error if the proof is malformed (too short or incomplete public inputs).
-fn split_proof(proof: &[u8]) -> Result<(Vec<Vec<u8>>, Vec<u8>), String> {
+pub fn split_proof(proof: &[u8]) -> Result<(Vec<Vec<u8>>, Vec<u8>), String> {
     if proof.len() < 4 {
         return Err("proof too short: missing public input count prefix".to_string());
     }
@@ -263,13 +264,12 @@ pub use pso_protocol::merkle::SPARSE_MERKLE_PATH_DEPTH;
 impl NoirFullProofCircuit {
     fn create_witness_map(witness: &FullProofWitness) -> Result<WitnessMap<FieldElement>, Error> {
         // Circuit main() signature (must match exactly):
-        //     nonce: Field,
-        //     pk_x_bytes: [u8; 32],
-        //     pk_y_bytes: [u8; 32],
+        //     pk: EmbeddedCurvePoint,
         //     signature: [u8; 64],
+        //     nonce: Field,
         //     merkle_path_siblings: [Field; 8],
         //     merkle_path_indices: [u8; 8],
-        //     expected_ownership: pub Field,
+        //     owner: pub Field,
         //     nft_hash: pub Field,
         //     expected_merkle_root: pub Field,
 
@@ -277,30 +277,16 @@ impl NoirFullProofCircuit {
 
         let mut witness_vec = Vec::new();
 
-        // nonce as Field
+        // pk.x as Field (Grumpkin coord, LE-decoded from 32 bytes)
         witness_vec.push(FieldElement::from_le_bytes_reduce(
-            &witness.private_inputs.ownership.nonce,
+            &witness.private_inputs.ownership.public_key_x,
+        ));
+        // pk.y as Field
+        witness_vec.push(FieldElement::from_le_bytes_reduce(
+            &witness.private_inputs.ownership.public_key_y,
         ));
 
-        // pk_x_bytes as [u8; 32] - coordinate can exceed BN254 field, pass as bytes
-        let public_key_x = witness
-            .private_inputs
-            .ownership
-            .public_key_x
-            .iter()
-            .map(|byte| FieldElement::from(*byte as u32));
-        witness_vec.extend(public_key_x);
-
-        // pk_y_bytes as [u8; 32]
-        let public_key_y = witness
-            .private_inputs
-            .ownership
-            .public_key_y
-            .iter()
-            .map(|byte| FieldElement::from(*byte as u32));
-        witness_vec.extend(public_key_y);
-
-        // signature as [u8; 64] (private witness)
+        // signature as [u8; 64] -- Schnorr/Grumpkin (s || e)
         let signature = witness
             .public_inputs
             .ownership
@@ -308,6 +294,11 @@ impl NoirFullProofCircuit {
             .iter()
             .map(|byte| FieldElement::from(*byte as u32));
         witness_vec.extend(signature);
+
+        // nonce as Field
+        witness_vec.push(FieldElement::from_le_bytes_reduce(
+            &witness.private_inputs.ownership.nonce,
+        ));
 
         // merkle_path_siblings as [Field; 8] and merkle_path_indices as [u8; 8]
         {
@@ -444,36 +435,38 @@ impl ZKCircuit<NoirCircuitConfig, NoirProof> for NoirOwnershipCircuit {
 }
 
 impl NoirOwnershipCircuit {
-    /// Create a witness map for the §4.2 ownership-only circuit.
+    /// Create a witness map for the Schnorr/Grumpkin ownership-only
+    /// circuit.
     ///
     /// Circuit `main()` parameter order (must match
     /// `pso-ownership-circuit/src/main.nr`):
     ///
     /// ```text
-    /// pk_x_bytes  : [u8; 32]      // private
-    /// pk_y_bytes  : [u8; 32]      // private
-    /// signature   : [u8; 64]      // private
-    /// nonce       : Field         // private
+    /// pk          : EmbeddedCurvePoint    // private — 2 Fields (pk.x, pk.y)
+    /// signature   : [u8; 64]              // private — 64 bytes (Schnorr s||e)
+    /// nonce       : Field                 // private
     /// owner       : pub Field
     /// nft_hash    : pub Field
     /// ```
     ///
-    /// Total: 130 elements (128 private bytes + 1 nonce + 2 public).
+    /// `public_key_x` / `public_key_y` in `OwnershipPrivateInputs` are
+    /// 32-byte LE encodings of Grumpkin Fr coordinates (was: SEC1
+    /// bytes for secp256k1).
     fn create_ownership_witness_map(
         witness: &OwnershipWitness,
     ) -> Result<WitnessMap<FieldElement>, Error> {
         let mut witness_vec = Vec::new();
 
-        // pk_x_bytes as [u8; 32]
-        for &byte in witness.private_inputs.public_key_x.iter() {
-            witness_vec.push(FieldElement::from(byte as u32));
-        }
-        // pk_y_bytes as [u8; 32]
-        for &byte in witness.private_inputs.public_key_y.iter() {
-            witness_vec.push(FieldElement::from(byte as u32));
-        }
-        // signature as [u8; 64] (private — signing key for
-        // Poseidon2(nft_hash, nonce) per §4.2)
+        // pk.x as one Field (Grumpkin coord, LE-decoded from 32 bytes)
+        witness_vec.push(FieldElement::from_le_bytes_reduce(
+            &witness.private_inputs.public_key_x,
+        ));
+        // pk.y as one Field
+        witness_vec.push(FieldElement::from_le_bytes_reduce(
+            &witness.private_inputs.public_key_y,
+        ));
+        // signature as [u8; 64] — Schnorr/Grumpkin (s || e). The
+        // `noir-lang/schnorr` crate expects this layout exactly.
         for &byte in witness.public_inputs.signature.iter() {
             witness_vec.push(FieldElement::from(byte as u32));
         }
@@ -495,17 +488,17 @@ impl NoirOwnershipCircuit {
     }
 }
 
-// -- Recursive aggregation circuit (pending) --------------------------- //
+// -- Flat aggregation circuit wrapper --------------------------------- //
 //
-// The Rust wrapper for `pso-recursive-aggregation-circuit-n*` lands
-// once the canonical regeneration step has compiled the tier
-// circuits, producing the `UltraHonkProof` byte layout we need to
-// route through the witness map. Until then, callers should rely on
-// the higher-level `pso_l2_client::wallet` API which surfaces
-// `L2ClientError::CircuitNotAvailable` for the prover step.
-//
-// See `docs/aggregation-redesign.md` in psonet/pso-integration for
-// the design + the per-slot public-input layout.
+// `NoirFlatAggregationCircuit` is intentionally NOT defined here. The
+// flat tier circuits (`pso-flat-aggregation-circuit-n*`) have a
+// witness shape parameterised by `N` (N copies of `(pk, signature,
+// nonce)` plus `2*N` public inputs), which is naturally expressed by
+// a generic over `const N: u32` on the consumer side. The wallet
+// integration in `pso-integration::pso-integrations-shared::witness`
+// owns the witness builders and the noir_rs prove call site so the
+// circuit core stays minimal -- this crate only owns the standalone
+// ownership + full-proof wrappers above.
 
 /// Derive the canonical UltraHonkKeccak verification key for a
 /// compiled Noir circuit, via the noir_rs FFI.
@@ -528,7 +521,16 @@ impl NoirOwnershipCircuit {
 /// `ipa_accumulation`, internal serialization). Going through the FFI
 /// removes the divergence and keeps the design self-consistent.
 pub fn derive_canonical_keccak_vk(bytecode: &str) -> anyhow::Result<Vec<u8>> {
-    let _srs = setup_srs_from_bytecode(bytecode, None, false).map_err(Error::msg)?;
+    // Provision a generous fixed BN254 SRS that covers all canonical
+    // tiers. `setup_srs_from_bytecode`'s subgroup-size heuristic
+    // undercounts for the larger flat-aggregation circuits (N=8+),
+    // causing barretenberg to abort with `prover trying to get too
+    // many points in MemBn254CrsFactory`. 2^21 = 2,097,152 points
+    // covers our largest circuit (N=64 acir ~5.5 MB) with headroom
+    // and the SRS download is cached locally after the first run.
+    use noir_rs::barretenberg::srs::setup_srs;
+    const SRS_POINTS: u32 = 1 << 21;
+    let _ = setup_srs(SRS_POINTS, None).map_err(Error::msg)?;
     let vk =
         get_ultra_honk_keccak_verification_key(bytecode, false, false, None).map_err(Error::msg)?;
     Ok(vk)
@@ -583,10 +585,8 @@ mod tests {
     };
     use ark_bn254::Fr;
     use ark_ff::UniformRand;
-    use k256::SecretKey;
     use noir_rs::{AcirField, FieldElement};
     use rand::rngs::OsRng;
-    use rand::RngCore;
 
     use crate::{testing, ZKCircuit};
     use pso_protocol::merkle::{MerklePathElement, MerklePathElementIndex};
@@ -614,15 +614,11 @@ mod tests {
     }
 
     /// Create a TestNFT with random crypto data.
-    fn make_test_nft() -> (TestNFT, SecretKey, Fr, Vec<MerklePathElement>) {
-        let secret_key = {
-            let mut b = [0u8; 32];
-            OsRng.fill_bytes(&mut b);
-            SecretKey::from_slice(&b).expect("random bytes should form a valid key")
-        };
+    fn make_test_nft() -> (TestNFT, testing::GrumpkinKey, Fr, Vec<MerklePathElement>) {
+        let key = testing::random_grumpkin_key().expect("random grumpkin key");
         let nonce = Fr::rand(&mut OsRng);
 
-        let ownership = testing::ownership_from_secret_key(&secret_key, nonce).unwrap();
+        let ownership = testing::ownership_from_grumpkin_key(&key, nonce).unwrap();
         let nft_hash = Fr::rand(&mut OsRng);
 
         let merkle_depth = 6;
@@ -645,7 +641,7 @@ mod tests {
             ownership,
             nft_hash,
         };
-        (nft, secret_key, nonce, merkle_path)
+        (nft, key, nonce, merkle_path)
     }
 
     // -- Helper --

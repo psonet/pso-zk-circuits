@@ -10,9 +10,7 @@ use std::time::Instant;
 
 use ark_bn254::Fr;
 use ark_ff::UniformRand;
-use k256::SecretKey;
 use rand::rngs::OsRng;
-use rand::RngCore;
 
 use pso_protocol::merkle::{MerklePathElement, MerklePathElementIndex};
 use pso_protocol::witness::{HashableNFT, OwnableNFT};
@@ -116,16 +114,10 @@ impl HashableNFT for BenchNFT {
     }
 }
 
-fn random_secret_key() -> SecretKey {
-    let mut b = [0u8; 32];
-    OsRng.fill_bytes(&mut b);
-    SecretKey::from_slice(&b).expect("random bytes should form a valid key")
-}
-
-fn make_bench_nft() -> (BenchNFT, SecretKey, Fr, Vec<MerklePathElement>) {
-    let secret_key = random_secret_key();
+fn make_bench_nft() -> (BenchNFT, testing::GrumpkinKey, Fr, Vec<MerklePathElement>) {
+    let key = testing::random_grumpkin_key().expect("random grumpkin key");
     let nonce = Fr::rand(&mut OsRng);
-    let ownership = testing::ownership_from_secret_key(&secret_key, nonce).unwrap();
+    let ownership = testing::ownership_from_grumpkin_key(&key, nonce).unwrap();
     let nft_hash = Fr::rand(&mut OsRng);
 
     let mut merkle_path = Vec::with_capacity(6);
@@ -146,7 +138,7 @@ fn make_bench_nft() -> (BenchNFT, SecretKey, Fr, Vec<MerklePathElement>) {
             ownership,
             nft_hash,
         },
-        secret_key,
+        key,
         nonce,
         merkle_path,
     )
@@ -268,33 +260,33 @@ fn main() {
     print_result(&r);
 
     // -- Crypto operations --
-    let sk = random_secret_key();
+    let key = testing::random_grumpkin_key().expect("random grumpkin key");
     let nonce = Fr::rand(&mut OsRng);
 
-    let r = bench("generate_ownership (Poseidon5)", 1_000, || {
-        std::hint::black_box(testing::ownership_from_secret_key(&sk, nonce).unwrap());
+    let r = bench("compute_ownership (Poseidon3)", 1_000, || {
+        std::hint::black_box(testing::ownership_from_grumpkin_key(&key, nonce).unwrap());
     });
     print_result(&r);
 
     // -- Witness generation --
-    let (nft, secret_key, nonce, merkle_path) = make_bench_nft();
+    let (nft, key, nonce, merkle_path) = make_bench_nft();
 
     let r = bench("ownership witness generation", 1_000, || {
-        std::hint::black_box(testing::build_ownership_witness(&nft, &secret_key, nonce).unwrap());
+        std::hint::black_box(testing::build_ownership_witness(&nft, &key, nonce).unwrap());
     });
     print_result(&r);
 
     let r = bench("full proof witness generation", 1_000, || {
         std::hint::black_box(
-            testing::build_full_proof_witness(&nft, &secret_key, nonce, &merkle_path).unwrap(),
+            testing::build_full_proof_witness(&nft, &key, nonce, &merkle_path).unwrap(),
         );
     });
     print_result(&r);
 
     // -- Proof operations --
-    let (nft, secret_key, nonce, _) = make_bench_nft();
+    let (nft, key, nonce, _) = make_bench_nft();
 
-    let ownership_witness = testing::build_ownership_witness(&nft, &secret_key, nonce).unwrap();
+    let ownership_witness = testing::build_ownership_witness(&nft, &key, nonce).unwrap();
 
     let ownership_bytecode = circuit_loader::load_circuit("data/ownership_proof.json").unwrap();
     let ownership_circuit = NoirOwnershipCircuit::setup(NoirCircuitConfig {
@@ -321,9 +313,9 @@ fn main() {
     print_result(&r);
 
     // Full proof circuit
-    let (nft2, sk2, nonce2, merkle_path2) = make_bench_nft();
+    let (nft2, key2, nonce2, merkle_path2) = make_bench_nft();
     let full_witness =
-        testing::build_full_proof_witness(&nft2, &sk2, nonce2, &merkle_path2).unwrap();
+        testing::build_full_proof_witness(&nft2, &key2, nonce2, &merkle_path2).unwrap();
 
     let full_bytecode = circuit_loader::load_circuit("data/full_proof.json").unwrap();
     let full_circuit = NoirFullProofCircuit::setup(NoirCircuitConfig {

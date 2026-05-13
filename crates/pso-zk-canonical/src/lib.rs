@@ -74,147 +74,89 @@ pub struct CircuitDescriptor {
 }
 
 // === BEGIN GENERATED — do not edit (run `cargo xtask regenerate-canonical`) ===
-//
-// **STALE PENDING REGENERATION.** The §4.2 redesign rewrote
-// `pso-ownership-circuit` (signature is now over Poseidon2(nft_hash,
-// nonce); `nft_hash` is a public input), `pso-full-circuit` (now
-// composes the same ownership constraint with Merkle inclusion), and
-// replaced the 8 `pso-su-ownership-aggregation-circuit-n*` tier crates
-// with `pso-recursive-aggregation-circuit-n*` (recursive proof folds N
-// inner ownership proofs via bb_proof_verification). The const values
-// below — `circuit_hash`, `vk_bytes` (via `include_bytes!`), and
-// `vk_hash` — still point at the OLD circuits' VKs. They're left here
-// so the workspace compiles; running `cargo xtask regenerate-canonical`
-// will compile the new circuits, derive the correct values, overwrite
-// the .vk files in `res/vks/`, and rewrite this generated block.
-//
-// Until that runs:
-//   - on-chain `zk_verify` calls against these descriptors will not
-//     accept proofs from the new circuits (circuit_hash mismatch);
-//   - the `pso_l2_client::wallet::prove_*` paths in pso-integration
-//     return `L2ClientError::CircuitNotAvailable` rather than producing
-//     bytes the chain would reject.
 
 pub const FULL_PROOF: CircuitDescriptor = CircuitDescriptor {
-    // STALE — pre-§4.2 hash. Real value lands on regenerate.
-    circuit_hash: hex_literal::hex!(
-        "7d7f9f6733d39b0e0215df9a03e31063ba681e0ed46648831e19872a7424006d"
-    ),
-    label: "pso.full_proof",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/full_proof.vk"),
-    vk_hash: hex_literal::hex!("0738a270483c9e03dac46a778339f94d42143e29b8b024130d5d763564355198"),
+    circuit_hash: hex_literal::hex!("d3d2f1289b6c17a1172a263024f9e115072fd355a80ea1c0e84040407c49b125"),
+    label:        "pso.full_proof",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/full_proof.vk"),
+    vk_hash:      hex_literal::hex!("fd393d8a0d138c990a76e82d6dca14304ee4a7854e7d34c19e2b04e64d023ad7"),
 };
 
 pub const OWNERSHIP: CircuitDescriptor = CircuitDescriptor {
-    // STALE — pre-§4.2 hash. Real value lands on regenerate.
-    circuit_hash: hex_literal::hex!(
-        "54260a584a822b5b8c1b1571c947ba0f92e3224493c29c06120b4d714ec315f3"
-    ),
-    label: "pso.ownership",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/ownership.vk"),
-    vk_hash: hex_literal::hex!("3c01bbc3812ca5f23844c2c64cc3856713f2174a507be111682533de33d4654b"),
+    circuit_hash: hex_literal::hex!("18db006ac6304a0ff2f4b624a1e31961223184f3638ce421161196a6e1b19c57"),
+    label:        "pso.ownership",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/ownership.vk"),
+    vk_hash:      hex_literal::hex!("8b0dbc83792074e488b0b63ce62c1ddd08020ffa6fe980917a53ea63c8c08ccf"),
 };
 
-// 8 recursive-aggregation tiers replacing the deleted
-// `SU_OWNERSHIP_AGGREGATION_N*` family. Until regenerate-canonical
-// runs, each carries the stale placeholder VK + hash from the
-// deleted family (the `.vk` files were git-renamed to
-// `recursive_aggregation_n{tier}.vk`) so `include_bytes!` resolves.
-// Real values land on regenerate.
-
-pub const RECURSIVE_AGGREGATION_N1: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "5657ef94fffc53073f21ca1332822839b68838c043b4e80115ea4733fabf758f"
-    ),
-    label: "pso.recursive_aggregation.n1",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n1.vk"),
-    vk_hash: hex_literal::hex!("45edd489c689c995417030cc5569ee059735825cae4f9f17e5661d617a14f031"),
+pub const FLAT_AGGREGATION_N1: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("501859afd14fffe1f25b72e36adf64ffcb7965d53561f585c2483c0a8ac99d07"),
+    label:        "pso.flat_aggregation.n1",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n1.vk"),
+    vk_hash:      hex_literal::hex!("81ba4aab2186484f74201c6efda76ee844b69ff9638da88581226c2d1ab46010"),
 };
 
-pub const RECURSIVE_AGGREGATION_N2: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "6d8a24c8686abfa099f331a25d7cc961d054a55bd7549ce06e063f340bf8b8bb"
-    ),
-    label: "pso.recursive_aggregation.n2",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n2.vk"),
-    vk_hash: hex_literal::hex!("29c76b2c6cee3c41dc96e52d36e60f2171b3b400db17bb03c1788463ac09ffa3"),
+pub const FLAT_AGGREGATION_N2: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("114421c5b7ae3accef9eac72e35db6c12eb0a8597b967d5ed9a1cde82b957f63"),
+    label:        "pso.flat_aggregation.n2",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n2.vk"),
+    vk_hash:      hex_literal::hex!("a780524c3a783e11e257f740a59e8bdf04c80ebf8298826ea0a344d3c09a69a9"),
 };
 
-pub const RECURSIVE_AGGREGATION_N4: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "9f4e4bd14ff300e774a5ce11c2ad7da8b89b9496bba745e3c9ddda18be8e0c09"
-    ),
-    label: "pso.recursive_aggregation.n4",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n4.vk"),
-    vk_hash: hex_literal::hex!("db460116fdd3448288135221be9b55eaf515e9444490a280d656498eb194eb29"),
+pub const FLAT_AGGREGATION_N4: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("616000a21fdf24c35623938159fcbebdaf0975961c5fc98783ace1f468f09a6c"),
+    label:        "pso.flat_aggregation.n4",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n4.vk"),
+    vk_hash:      hex_literal::hex!("43d128ea1bc7e9b101b286ec5388a3151d39264019112c6810e1e9516d6e3df7"),
 };
 
-pub const RECURSIVE_AGGREGATION_N6: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "6f06808a10b13a7c0b256306231826dcdba457dfd9da5277bc007ad653a992a6"
-    ),
-    label: "pso.recursive_aggregation.n6",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n6.vk"),
-    vk_hash: hex_literal::hex!("45491217b03ab696d205ed465928433060e98b1386a6f87a039bc8426c3d9f59"),
+pub const FLAT_AGGREGATION_N8: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("f42a27324ca6a56377130b10e2c3760d0697421c5463fbd1463699727ddedb7b"),
+    label:        "pso.flat_aggregation.n8",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n8.vk"),
+    vk_hash:      hex_literal::hex!("5f7901a014e38c7ec0377bf545609f5d3271fbc669374bfab4da8c55c0dbe3ef"),
 };
 
-pub const RECURSIVE_AGGREGATION_N8: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "302f749cf37d8a79f6f6321698a0c2fcfb67ffa1cbfcdddd43ad9d4387b25551"
-    ),
-    label: "pso.recursive_aggregation.n8",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n8.vk"),
-    vk_hash: hex_literal::hex!("9d5c72235d46f8fcc6e48d837d2b4f7164e4cf26217931922af89e395a6fbcb2"),
+pub const FLAT_AGGREGATION_N16: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("ce83efdd3ccfe05b1d84e44d5056f0b110af99661bc50b578888b968d27549db"),
+    label:        "pso.flat_aggregation.n16",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n16.vk"),
+    vk_hash:      hex_literal::hex!("794ccf2dfd137fe170fd24d255c214ff3701815dbc4746e7675548a3c58c92e0"),
 };
 
-pub const RECURSIVE_AGGREGATION_N16: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "1fa8585e47b9db1d3faabd9ec8e35dd7e9862a5278f9d5561d00bd307973a983"
-    ),
-    label: "pso.recursive_aggregation.n16",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n16.vk"),
-    vk_hash: hex_literal::hex!("e2f554427ef40f8108411fb36958a945a5ec1b6a2373a1f13cad45ffe90930da"),
+pub const FLAT_AGGREGATION_N32: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("783b54ce02aec97efb12d71772d2d3123f6d747207e74a6e7d1df217a6f17c88"),
+    label:        "pso.flat_aggregation.n32",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n32.vk"),
+    vk_hash:      hex_literal::hex!("fe7cd93a4c44ae2ca6c90ce905bd1a58f5595f1dd6c13a030a8e5beba197a7da"),
 };
 
-pub const RECURSIVE_AGGREGATION_N32: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "c7d797b22984f7acca620ed6ed1045441043dab8f53a8fd82319414143b6d639"
-    ),
-    label: "pso.recursive_aggregation.n32",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n32.vk"),
-    vk_hash: hex_literal::hex!("35e18c003099c9f159473f96a4065d113c9d93ab1a82e7a7be81c98faef0e8a7"),
-};
-
-pub const RECURSIVE_AGGREGATION_N64: CircuitDescriptor = CircuitDescriptor {
-    circuit_hash: hex_literal::hex!(
-        "2f8c0618f5db9f52b7500c804bfe0d67e26493cd2931bbde6c9fe2092cb5703f"
-    ),
-    label: "pso.recursive_aggregation.n64",
-    version: "1.0.0",
-    vk_bytes: include_bytes!("../res/vks/recursive_aggregation_n64.vk"),
-    vk_hash: hex_literal::hex!("f2dab55592ac69e36ea61057e384a1f93bb2ef95fa6c88e4d43c4fbcc84abaea"),
+pub const FLAT_AGGREGATION_N64: CircuitDescriptor = CircuitDescriptor {
+    circuit_hash: hex_literal::hex!("8e5624c7d39cd6bc0e5fab64475c7bb2944dfd345101d6c7175903dfac36bd89"),
+    label:        "pso.flat_aggregation.n64",
+    version:      "1.0.0",
+    vk_bytes:     include_bytes!("../res/vks/flat_aggregation_n64.vk"),
+    vk_hash:      hex_literal::hex!("7e734ada2d03be09bc923934539837be6cd08cfa717db3c521d6c0df18bf88d5"),
 };
 
 pub const ALL_CIRCUITS: &[&CircuitDescriptor] = &[
     &FULL_PROOF,
     &OWNERSHIP,
-    &RECURSIVE_AGGREGATION_N1,
-    &RECURSIVE_AGGREGATION_N2,
-    &RECURSIVE_AGGREGATION_N4,
-    &RECURSIVE_AGGREGATION_N6,
-    &RECURSIVE_AGGREGATION_N8,
-    &RECURSIVE_AGGREGATION_N16,
-    &RECURSIVE_AGGREGATION_N32,
-    &RECURSIVE_AGGREGATION_N64,
+    &FLAT_AGGREGATION_N1,
+    &FLAT_AGGREGATION_N2,
+    &FLAT_AGGREGATION_N4,
+    &FLAT_AGGREGATION_N8,
+    &FLAT_AGGREGATION_N16,
+    &FLAT_AGGREGATION_N32,
+    &FLAT_AGGREGATION_N64,
 ];
 // === END GENERATED ===
 
@@ -238,24 +180,23 @@ pub fn find_by_hash(circuit_hash: &[u8; 32]) -> Option<&'static CircuitDescripto
 // the prover-side wallet integrations, and any future tooling all
 // resolve through this function so they can never disagree.
 
-/// Ordered tier sizes for the recursive aggregation circuits, in
-/// ascending order. Must match the
-/// `pso-recursive-aggregation-circuit-n*` crates on the Noir side.
-/// `SU_AGGREGATION_TIERS` and `SU_AGGREGATION_DESCRIPTORS` are kept
-/// in lockstep — same length, same index meaning.
-pub const SU_AGGREGATION_TIERS: &[u32] = &[1, 2, 4, 6, 8, 16, 32, 64];
+/// Ordered tier sizes for the flat aggregation circuits, in ascending
+/// order. Must match the `pso-flat-aggregation-circuit-n*` crates on
+/// the Noir side. `SU_AGGREGATION_TIERS` and
+/// `SU_AGGREGATION_DESCRIPTORS` are kept in lockstep — same length,
+/// same index meaning.
+pub const SU_AGGREGATION_TIERS: &[u32] = &[1, 2, 4, 8, 16, 32, 64];
 
 /// Canonical descriptors for each aggregation tier, parallel-indexed
 /// with [`SU_AGGREGATION_TIERS`].
 pub const SU_AGGREGATION_DESCRIPTORS: &[&CircuitDescriptor] = &[
-    &RECURSIVE_AGGREGATION_N1,
-    &RECURSIVE_AGGREGATION_N2,
-    &RECURSIVE_AGGREGATION_N4,
-    &RECURSIVE_AGGREGATION_N6,
-    &RECURSIVE_AGGREGATION_N8,
-    &RECURSIVE_AGGREGATION_N16,
-    &RECURSIVE_AGGREGATION_N32,
-    &RECURSIVE_AGGREGATION_N64,
+    &FLAT_AGGREGATION_N1,
+    &FLAT_AGGREGATION_N2,
+    &FLAT_AGGREGATION_N4,
+    &FLAT_AGGREGATION_N8,
+    &FLAT_AGGREGATION_N16,
+    &FLAT_AGGREGATION_N32,
+    &FLAT_AGGREGATION_N64,
 ];
 
 /// Result of resolving an SU count to an aggregation circuit tier.
@@ -350,8 +291,10 @@ mod tests {
 
     #[test]
     fn select_rounds_up_to_next_tier() {
-        // 3 SUs fits the N=4 tier (smallest >= 3). 7 fits N=8. 9 fits N=16.
+        // 3 SUs fits N=4 (smallest >= 3). 5..=8 fits N=8. 9..=16 fits
+        // N=16. The N=6 tier was dropped — fewer tiers, same ladder.
         assert_eq!(select_aggregation_tier(3).unwrap().tier_n, 4);
+        assert_eq!(select_aggregation_tier(5).unwrap().tier_n, 8);
         assert_eq!(select_aggregation_tier(7).unwrap().tier_n, 8);
         assert_eq!(select_aggregation_tier(9).unwrap().tier_n, 16);
         assert_eq!(select_aggregation_tier(33).unwrap().tier_n, 64);
@@ -371,14 +314,13 @@ mod tests {
         for (i, &tier_n) in SU_AGGREGATION_TIERS.iter().enumerate() {
             let d = SU_AGGREGATION_DESCRIPTORS[i];
             let expected = match tier_n {
-                1 => "pso.recursive_aggregation.n1",
-                2 => "pso.recursive_aggregation.n2",
-                4 => "pso.recursive_aggregation.n4",
-                6 => "pso.recursive_aggregation.n6",
-                8 => "pso.recursive_aggregation.n8",
-                16 => "pso.recursive_aggregation.n16",
-                32 => "pso.recursive_aggregation.n32",
-                64 => "pso.recursive_aggregation.n64",
+                1 => "pso.flat_aggregation.n1",
+                2 => "pso.flat_aggregation.n2",
+                4 => "pso.flat_aggregation.n4",
+                8 => "pso.flat_aggregation.n8",
+                16 => "pso.flat_aggregation.n16",
+                32 => "pso.flat_aggregation.n32",
+                64 => "pso.flat_aggregation.n64",
                 _ => panic!("unmapped tier {tier_n}"),
             };
             assert_eq!(d.label, expected);

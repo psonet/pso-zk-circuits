@@ -1,9 +1,0 @@
-[package]
-name = "recursive_aggregation_n2"
-type = "bin"
-authors = ["outbe"]
-compiler_version = ">=1.0.0"
-
-[dependencies]
-pso_circuit_core = { path = "../pso-circuit-core" }
-bb_proof_verification = { tag = "v4.1.1", git = "https://github.com/AztecProtocol/aztec-packages", directory = "barretenberg/noir/bb_proof_verification" }

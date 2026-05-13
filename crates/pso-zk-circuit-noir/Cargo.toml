@@ -17,18 +17,23 @@ bs58.workspace = true
 
 serde_json.workspace = true
 
-# The k256 + ark stack is needed by the `testing` module (which builds
-# witnesses from real keypairs). It's a pub mod, not feature-gated,
-# because the integration tests and benches in this crate use it and
-# Cargo doesn't offer a clean way to expose a `cfg(test)` module to
-# `tests/*.rs`. Runtime cost is negligible next to barretenberg-rs.
-k256       = { workspace = true }
+# Used by the `testing` module (Grumpkin keypair generation, witness
+# builders). It's a pub mod, not feature-gated, because integration
+# tests and benches in this crate use it and Cargo doesn't offer a
+# clean way to expose a `cfg(test)` module to `tests/*.rs`. Runtime
+# cost is negligible next to barretenberg-rs.
 ark-ff     = { workspace = true }
 ark-bn254  = { workspace = true }
+rand       = { workspace = true }
 
 [dev-dependencies]
-rand.workspace = true
 criterion = { version = "0.5", features = ["html_reports"] }
+# Used by `examples/measure_pk.rs` to read peak macOS RSS.
+libc = "0.2"
+# Used by `examples/measure_pk_rolluphonk.rs` for direct barretenberg-rs
+# calls (Grumpkin SRS + IPA-accumulation circuit_compute_vk).
+base64 = "0.22"
+reqwest = { version = "0.12", features = ["blocking"] }
 # Canonical descriptors (circuit_hash + canonical VK bytes). Used by
 # the aggregation integration tests so they verify against the same
 # VK that the on-chain `zk_verify` precompile consumes.
