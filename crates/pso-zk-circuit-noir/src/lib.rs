@@ -9,6 +9,56 @@ pub mod schnorr_grumpkin;
 pub mod testing;
 pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 
+// -----------------------------------------------------------------
+// Canonical-circuit JSON exports.
+//
+// `data/flat_aggregation_n*.json` ships the base64-encoded ACIR
+// bytecode + ACIR hash for each canonical aggregation tier. Wallets
+// load these to feed `noir_rs::prove_ultra_honk_keccak`. Embedding
+// them as `&'static str` via `include_str!` from inside this crate
+// means consumers don't have to know where on disk pso-zk-circuits
+// lives — the bytes ride along with the cargo-fetched crate source.
+// (The previous shape made `pso-l2-client` `include_str!` a path
+// relative to a sibling-checkout layout, which broke any CI that
+// only cloned one repo.)
+//
+// `SU_AGGREGATION_TIERS` in `pso-zk-canonical` enumerates the valid
+// tiers (1, 2, 4, 8, 16, 32, 64); [`flat_aggregation_json`] mirrors
+// that set and returns `None` for any other input so a typo in the
+// caller surfaces at compile/lookup time instead of as a panic.
+pub const FLAT_AGGREGATION_N1_JSON: &str =
+    include_str!("../data/flat_aggregation_n1.json");
+pub const FLAT_AGGREGATION_N2_JSON: &str =
+    include_str!("../data/flat_aggregation_n2.json");
+pub const FLAT_AGGREGATION_N4_JSON: &str =
+    include_str!("../data/flat_aggregation_n4.json");
+pub const FLAT_AGGREGATION_N8_JSON: &str =
+    include_str!("../data/flat_aggregation_n8.json");
+pub const FLAT_AGGREGATION_N16_JSON: &str =
+    include_str!("../data/flat_aggregation_n16.json");
+pub const FLAT_AGGREGATION_N32_JSON: &str =
+    include_str!("../data/flat_aggregation_n32.json");
+pub const FLAT_AGGREGATION_N64_JSON: &str =
+    include_str!("../data/flat_aggregation_n64.json");
+
+/// Return the JSON document (bytecode + hash) for a given flat
+/// aggregation tier, or `None` if `tier_n` is not in
+/// `{1, 2, 4, 8, 16, 32, 64}`. Stable surface for downstream
+/// crates (e.g. `pso-l2-client::wallet`) so they can dispatch by
+/// tier without owning a relative-path `include_str!`.
+pub fn flat_aggregation_json(tier_n: u32) -> Option<&'static str> {
+    match tier_n {
+        1 => Some(FLAT_AGGREGATION_N1_JSON),
+        2 => Some(FLAT_AGGREGATION_N2_JSON),
+        4 => Some(FLAT_AGGREGATION_N4_JSON),
+        8 => Some(FLAT_AGGREGATION_N8_JSON),
+        16 => Some(FLAT_AGGREGATION_N16_JSON),
+        32 => Some(FLAT_AGGREGATION_N32_JSON),
+        64 => Some(FLAT_AGGREGATION_N64_JSON),
+        _ => None,
+    }
+}
+
 use std::fmt::{Debug, Formatter};
 
 use anyhow::Error;
