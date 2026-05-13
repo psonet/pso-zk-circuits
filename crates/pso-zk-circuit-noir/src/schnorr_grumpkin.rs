@@ -51,10 +51,27 @@ pub struct GrumpkinKey {
 }
 
 /// Sample a fresh Grumpkin keypair from OS randomness.
+///
+/// The 32 random bytes are reduced modulo the Grumpkin scalar field
+/// order (= BN254's base field `Fq`) before being handed to
+/// `barretenberg-rs`. bb 5.x's `schnorr_compute_public_key` aborts
+/// the process with an uncatchable C++ exception on any input
+/// `>= q_Grumpkin`. With 256-bit raw randomness ~63% of unreduced
+/// rolls would trip that path; reducing here makes the helper safe
+/// for every consumer (test code in particular).
 pub fn random_grumpkin_key() -> anyhow::Result<GrumpkinKey> {
     let mut sk_bytes = [0u8; 32];
     OsRng.fill_bytes(&mut sk_bytes);
-    derive_grumpkin_public_key(&sk_bytes)
+    // Reduce mod q_Grumpkin in-place. We model q as BN254 `Fq`
+    // (Grumpkin's scalar field is BN254's base field by
+    // construction).
+    let reduced = ark_bn254::Fq::from_be_bytes_mod_order(&sk_bytes);
+    let be = ark_ff::PrimeField::into_bigint(reduced);
+    let be_bytes = ark_ff::BigInteger::to_bytes_be(&be);
+    let mut padded = [0u8; 32];
+    let off = 32 - be_bytes.len().min(32);
+    padded[off..].copy_from_slice(&be_bytes[be_bytes.len().saturating_sub(32)..]);
+    derive_grumpkin_public_key(&padded)
 }
 
 /// Derive a Grumpkin public key from raw 32-byte secret-key bytes via
