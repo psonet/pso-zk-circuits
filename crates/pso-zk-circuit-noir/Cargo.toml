@@ -3,6 +3,17 @@ name = "pso-zk-circuit-noir"
 version = "0.1.0"
 edition = "2021"
 description = "Noir circuit implementation for ZK proofs - ownership and Merkle inclusion"
+license = "Apache-2.0"
+repository = "https://github.com/psonet/pso-zk-circuits"
+
+# Mobile-loadable library shapes for the CI build-ios / build-android
+# jobs. `staticlib` produces the `.a` consumed by the iOS xcframework;
+# `cdylib` produces the `.so` consumed by Android's NDK loader. `rlib`
+# keeps the crate usable as a normal cargo workspace dep for all the
+# rust callers (xtask, pso-zk-canonical tests, the desktop prover
+# integration tests).
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
 # Witness types, hash formulas, and consensus-binding primitives.

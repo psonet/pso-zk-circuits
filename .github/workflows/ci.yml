@@ -1,49 +1,143 @@
-name: CI
-
-# Basic lint + test pipeline for pso-zk-circuits, mirroring the
-# `lint` / `test` shape used by `psonet/pso-protocol`. The
-# release-cycle workflow (`release.yml`) handles cog-driven tagging
-# on green main pushes.
+# Unified CI + release pipeline for pso-zk-circuits. Mirrors
+# psonet/pso-chain's `ci.yml` layout (resolve -> check/test ->
+# build-ios + build-android -> tag -> github-release) with two
+# domain tweaks:
+#
+#   - no `image` / Dockerfile job — pso-zk-circuits is a library
+#     crate consumed by pso-chain / pso-integration / the wallet
+#     SDKs; there's no deployable binary to ship.
+#   - mobile cross-compile (iOS + Android) replaces the linux x86_64
+#     release-binaries step. The Wallet SDK consumes the C ABI
+#     surface of `pso-zk-circuit-noir` from Swift / Kotlin, so we
+#     ship a per-target `libpso_zk_circuit_noir.{a,so}` plus a
+#     combined `libpso_zk_circuit_noir.xcframework` for SwiftPM
+#     integration.
+#
+#     Caveat: `pso-zk-circuit-noir -> barretenberg-rs` links a C++
+#     `barretenberg` static lib whose CMake config may not (yet)
+#     cross-build to iOS / Android targets. Both build-ios and
+#     build-android run with `continue-on-error: true` so a
+#     toolchain failure surfaces in the job logs but doesn't block
+#     the cog tag step on green main pushes. `github-release` uses
+#     `if: always()` and only attaches whichever artifacts uploaded
+#     successfully.
+#
+# Triggers (same shape as pso-chain):
+#   push:main         full pipeline incl. cog auto-bump
+#   pull_request      check / test only
+#   push:tags:["v*"]  release-only path; skip tests, run
+#                     build-ios + build-android + github-release
+#                     against the named tag
+#   workflow_dispatch with `tag` input: same as push:tags but
+#                     maintainer-named; empty input runs the
+#                     normal main pipeline
+name: ci
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing tag to (re-)release (e.g. "v0.1.0"). Empty input
+          runs the normal main pipeline.
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: read
+  actions: write
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
-  lint:
-    name: Lint and Format Check
+  # --------------------------------------------------------------
+  # Mode prelude. Every other job's `if:` reads `release_tag`.
+  # --------------------------------------------------------------
+  resolve:
+    name: Resolve release tag
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.r.outputs.release_tag }}
+    steps:
+      - id: r
+        run: |
+          set -euo pipefail
+          tag=""
+          case "${{ github.event_name }}" in
+            push)
+              if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+                tag="${{ github.ref_name }}"
+              fi
+              ;;
+            workflow_dispatch)
+              tag='${{ inputs.tag }}'
+              ;;
+          esac
+          echo "release_tag=${tag}"
+          echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------
+  # Format + clippy + cargo test on stable & beta. Runs on PR +
+  # push:main; skipped on tag-push / workflow_dispatch release
+  # paths because the underlying main commit already ran them
+  # before the tag was cut.
+  # --------------------------------------------------------------
+  check:
+    name: cargo fmt + clippy + test (${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    needs: resolve
+    if: needs.resolve.outputs.release_tag == '' && !startsWith(github.event.head_commit.message, 'chore(version):') && !contains(github.event.head_commit.message, '[skip ci]')
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, beta]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/configure-private-git
+        with:
+          token: ${{ secrets.PSONET_REPO_TOKEN }}
+
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          components: rustfmt, clippy, cargo
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-stable-lint-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-stable-lint-
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
 
-      - name: Check code formatting
+      - name: Install C++ toolchain (barretenberg-rs build)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake clang \
+            libstdc++-12-dev \
+            libc++-dev libc++abi-dev \
+            pkg-config libssl-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Distinct cache slot per toolchain so stable + beta don't
+          # clobber each other.
+          key: ${{ matrix.rust }}
+
+      - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
-      - name: Run clippy
+      - name: cargo clippy
         run: |
-          cargo clippy --version
-          cargo clippy --all-targets --all-features -- -D warnings \
+          cargo clippy --all-targets --all-features -- \
+            -D warnings \
             -D clippy::dbg_macro \
             -D clippy::print_stdout \
             -D clippy::print_stderr \
@@ -54,37 +148,444 @@ jobs:
             -A clippy::missing_errors_doc \
             -A clippy::missing_panics_doc
 
-      - name: Check documentation builds
-        run: cargo doc --no-deps --all-features --document-private-items
+      - name: cargo test --workspace
+        run: cargo test --workspace
 
-  test:
-    name: Rust Tests
-    runs-on: ubuntu-latest
-    needs: [lint]
+  # --------------------------------------------------------------
+  # iOS cross-compile. Produces three per-target `.a` files and a
+  # combined `.xcframework` bundle for SwiftPM consumption.
+  #
+  # `continue-on-error: true` because barretenberg-rs links C++
+  # barretenberg, whose CMake config may not (yet) ship an iOS
+  # toolchain file — the job is best-effort, the `tag` stage below
+  # does not depend on its result.
+  # --------------------------------------------------------------
+  build-ios:
+    name: Build iOS static libs + xcframework
+    runs-on: macos-latest
+    needs: [resolve, check]
+    if: |
+      always() &&
+      (needs.resolve.outputs.release_tag != '' ||
+       (needs.check.result == 'success' &&
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        !startsWith(github.event.head_commit.message, 'chore(version):') &&
+        !contains(github.event.head_commit.message, '[skip ci]')))
+    continue-on-error: true
     strategy:
+      # Run all three iOS targets even if one fails — partial
+      # coverage is still useful when debugging cross-toolchain
+      # breakage (e.g. simulator builds work but device builds
+      # don't, or vice versa).
+      fail-fast: false
       matrix:
-        rust: [stable, beta]
+        include:
+          - target: aarch64-apple-ios
+            label: ios-arm64
+          - target: aarch64-apple-ios-sim
+            label: ios-sim-arm64
+          - target: x86_64-apple-ios-sim
+            label: ios-sim-x86_64
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.release_tag || github.ref }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/configure-private-git
+        with:
+          token: ${{ secrets.PSONET_REPO_TOKEN }}
+
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: ${{ matrix.rust }}
-          components: rustfmt, clippy, cargo
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+          toolchain: stable
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.rust }}-
+          key: ios-${{ matrix.target }}
+          save-if: ${{ needs.resolve.outputs.release_tag == '' }}
 
-      - name: Run tests (default features)
-        run: cargo test --workspace --verbose
+      - name: cargo build --release -p pso-zk-circuit-noir
+        run: cargo build --release -p pso-zk-circuit-noir --target ${{ matrix.target }}
 
-      - name: Build (release)
-        run: cargo build --workspace --verbose --release
+      - name: Stage static lib
+        run: |
+          set -euo pipefail
+          mkdir -p dist/${{ matrix.label }}
+          cp "target/${{ matrix.target }}/release/libpso_zk_circuit_noir.a" \
+             "dist/${{ matrix.label }}/libpso_zk_circuit_noir.a"
+          ls -lh "dist/${{ matrix.label }}/"
+
+      - name: Upload per-target static lib
+        uses: actions/upload-artifact@v4
+        with:
+          name: pso-zk-circuit-noir-${{ matrix.label }}
+          path: dist/${{ matrix.label }}/libpso_zk_circuit_noir.a
+          if-no-files-found: error
+          retention-days: 7
+
+  # Combine the three iOS slices into a single .xcframework that
+  # SwiftPM / Xcode can consume directly. Runs after all three
+  # build-ios matrix legs (or skips itself if no slices made it
+  # through). Best-effort like the matrix above.
+  build-ios-xcframework:
+    name: Assemble iOS xcframework
+    runs-on: macos-latest
+    needs: [resolve, build-ios]
+    if: |
+      always() &&
+      (needs.resolve.outputs.release_tag != '' ||
+       (github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        !startsWith(github.event.head_commit.message, 'chore(version):') &&
+        !contains(github.event.head_commit.message, '[skip ci]')))
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.release_tag || github.ref }}
+          persist-credentials: false
+
+      - name: Download iOS slices
+        uses: actions/download-artifact@v4
+        with:
+          path: slices/
+          pattern: pso-zk-circuit-noir-ios-*
+          merge-multiple: false
+
+      - name: Build xcframework
+        run: |
+          set -euo pipefail
+          ls -R slices/
+
+          # `xcodebuild -create-xcframework` rejects two slices that
+          # share a platform (iphonesimulator) unless they're merged
+          # into a single fat archive first with `lipo`. The two sim
+          # legs (arm64 + x86_64) get lipo'd; the device leg ships
+          # standalone.
+          device_lib=""
+          sim_arm64=""
+          sim_x86_64=""
+          [ -f slices/pso-zk-circuit-noir-ios-arm64/libpso_zk_circuit_noir.a ]      && device_lib="slices/pso-zk-circuit-noir-ios-arm64/libpso_zk_circuit_noir.a"
+          [ -f slices/pso-zk-circuit-noir-ios-sim-arm64/libpso_zk_circuit_noir.a ]  && sim_arm64="slices/pso-zk-circuit-noir-ios-sim-arm64/libpso_zk_circuit_noir.a"
+          [ -f slices/pso-zk-circuit-noir-ios-sim-x86_64/libpso_zk_circuit_noir.a ] && sim_x86_64="slices/pso-zk-circuit-noir-ios-sim-x86_64/libpso_zk_circuit_noir.a"
+
+          args=()
+          if [ -n "$device_lib" ]; then
+            args+=( -library "$device_lib" )
+          fi
+          if [ -n "$sim_arm64" ] && [ -n "$sim_x86_64" ]; then
+            mkdir -p slices/ios-sim-fat
+            lipo -create "$sim_arm64" "$sim_x86_64" \
+              -output slices/ios-sim-fat/libpso_zk_circuit_noir.a
+            args+=( -library slices/ios-sim-fat/libpso_zk_circuit_noir.a )
+          elif [ -n "$sim_arm64" ]; then
+            args+=( -library "$sim_arm64" )
+          elif [ -n "$sim_x86_64" ]; then
+            args+=( -library "$sim_x86_64" )
+          fi
+
+          if [ ${#args[@]} -eq 0 ]; then
+            echo "::error::no iOS slices available to assemble xcframework"
+            exit 1
+          fi
+
+          mkdir -p dist
+          xcodebuild -create-xcframework \
+            "${args[@]}" \
+            -output dist/libpso_zk_circuit_noir.xcframework
+
+          # `-create-xcframework` writes a directory; the release
+          # attachment wants a single file, so zip it up.
+          (cd dist && zip -r libpso_zk_circuit_noir.xcframework.zip libpso_zk_circuit_noir.xcframework)
+          ls -lh dist/
+
+      - name: Upload xcframework
+        uses: actions/upload-artifact@v4
+        with:
+          name: pso-zk-circuit-noir-xcframework
+          path: dist/libpso_zk_circuit_noir.xcframework.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  # --------------------------------------------------------------
+  # Android NDK cross-compile via cargo-ndk. Produces per-ABI
+  # `libpso_zk_circuit_noir.so`. Best-effort, same caveat as iOS.
+  # --------------------------------------------------------------
+  build-android:
+    name: Build Android shared libs
+    runs-on: ubuntu-latest
+    needs: [resolve, check]
+    if: |
+      always() &&
+      (needs.resolve.outputs.release_tag != '' ||
+       (needs.check.result == 'success' &&
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        !startsWith(github.event.head_commit.message, 'chore(version):') &&
+        !contains(github.event.head_commit.message, '[skip ci]')))
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            label: android-arm64-v8a
+            abi: arm64-v8a
+          - target: armv7-linux-androideabi
+            label: android-armeabi-v7a
+            abi: armeabi-v7a
+          - target: x86_64-linux-android
+            label: android-x86_64
+            abi: x86_64
+          - target: i686-linux-android
+            label: android-x86
+            abi: x86
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.release_tag || github.ref }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/configure-private-git
+        with:
+          token: ${{ secrets.PSONET_REPO_TOKEN }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Install C++ toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake clang pkg-config
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-${{ matrix.target }}
+          save-if: ${{ needs.resolve.outputs.release_tag == '' }}
+
+      - name: cargo ndk build -p pso-zk-circuit-noir
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          cargo ndk \
+            --target ${{ matrix.abi }} \
+            --platform 24 \
+            --output-dir ./jniLibs \
+            build --release -p pso-zk-circuit-noir
+
+      - name: Stage shared lib
+        run: |
+          set -euo pipefail
+          mkdir -p dist/${{ matrix.label }}
+          # cargo-ndk lays output as jniLibs/<abi>/<lib>.so
+          cp "jniLibs/${{ matrix.abi }}/libpso_zk_circuit_noir.so" \
+             "dist/${{ matrix.label }}/libpso_zk_circuit_noir.so"
+          ls -lh "dist/${{ matrix.label }}/"
+
+      - name: Upload per-ABI shared lib
+        uses: actions/upload-artifact@v4
+        with:
+          name: pso-zk-circuit-noir-${{ matrix.label }}
+          path: dist/${{ matrix.label }}/libpso_zk_circuit_noir.so
+          if-no-files-found: error
+          retention-days: 7
+
+  # --------------------------------------------------------------
+  # Version bump + tag. Only on push:main, only after `check` is
+  # green. Independent of the mobile build jobs — those are
+  # best-effort and shouldn't block release cuts on barretenberg-rs
+  # cross-toolchain regressions.
+  # --------------------------------------------------------------
+  tag:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+    needs: [resolve, check]
+    if: needs.resolve.outputs.release_tag == '' && github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(version):') && !contains(github.event.head_commit.message, '[skip ci]')
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Cocogitto bump
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: bump
+          args: --auto
+          git-user: "github-actions[bot]"
+          git-user-email: "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve created tag (if any)
+        id: bump
+        run: |
+          set -euo pipefail
+          tag="$(git tag --points-at HEAD | grep '^v' | head -n1 || true)"
+          echo "tag=${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------
+  # crates.io publish. Fires after `tag` produces a fresh tag, OR
+  # when re-releasing an existing tag via workflow_dispatch /
+  # tag-push. Publishes the workspace's library crates in dep
+  # order: `pso-zk-canonical` first (no internal deps), then
+  # `pso-zk-circuit-noir` (depends on pso-zk-canonical).
+  #
+  # `xtask` is `publish = false` and is skipped.
+  #
+  # `continue-on-error: true` so transient flakes (e.g. crates.io
+  # index latency between the two publish calls, or a missing
+  # upstream registry dep on first run) don't block the GitHub
+  # release — the mobile artifacts still ship even if crates.io
+  # rejects the publish.
+  # --------------------------------------------------------------
+  publish-crates-io:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [resolve, check, tag]
+    if: |
+      always() &&
+      (needs.tag.result == 'success' && needs.tag.outputs.tag != '' ||
+       needs.resolve.outputs.release_tag != '')
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/configure-private-git
+        with:
+          token: ${{ secrets.PSONET_REPO_TOKEN }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: cargo
+
+      - name: Publish pso-zk-canonical
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          cargo publish -p pso-zk-canonical --token "${CARGO_REGISTRY_TOKEN}" --no-verify
+
+      # Brief sleep so crates.io's index catches up before the
+      # dependent crate tries to resolve `pso-zk-canonical = "X.Y.Z"`.
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish pso-zk-circuit-noir
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          cargo publish -p pso-zk-circuit-noir --token "${CARGO_REGISTRY_TOKEN}" --no-verify
+
+  # --------------------------------------------------------------
+  # Release. Gated on `tag.outputs.tag != ''` (cog bumped on main
+  # push) OR `resolve.outputs.release_tag != ''` (manual tag push /
+  # workflow_dispatch). Downloads every artifact produced by the
+  # mobile build jobs (whichever succeeded) and attaches them all
+  # to the release.
+  # --------------------------------------------------------------
+  github-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: [resolve, tag, build-ios, build-ios-xcframework, build-android, publish-crates-io]
+    if: |
+      always() &&
+      (needs.tag.result == 'success' && needs.tag.outputs.tag != '' ||
+       needs.resolve.outputs.release_tag != '')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+
+      - name: Download all mobile artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          pattern: pso-zk-circuit-noir-*
+          merge-multiple: false
+
+      - name: Flatten + rename artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p release/
+          # actions/download-artifact@v4 with merge-multiple: false
+          # writes each artifact into its own subdir matching the
+          # upload name. Walk those subdirs and copy the inner file
+          # out, prefixing it with the artifact name so two `.a`
+          # files (one per slice) don't collide.
+          shopt -s nullglob
+          for dir in artifacts/pso-zk-circuit-noir-*/; do
+            name="$(basename "$dir")"
+            for f in "$dir"*; do
+              fname="$(basename "$f")"
+              cp "$f" "release/${name}-${fname}"
+            done
+          done
+          ls -lh release/ || echo "(no artifacts assembled)"
+
+      - name: Compose release body
+        env:
+          TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Mobile artifacts"
+            echo
+            echo "Pre-built \`libpso_zk_circuit_noir\` for iOS + Android targets."
+            echo "Whichever cross-toolchain targets succeeded on this run are"
+            echo "attached below; missing slices indicate a barretenberg-rs"
+            echo "cross-build failure on that target (see workflow logs)."
+            echo
+            echo "### iOS"
+            echo
+            echo "- \`libpso_zk_circuit_noir.a\` — per-target static lib"
+            echo "  (\`aarch64-apple-ios\`, \`aarch64-apple-ios-sim\`,"
+            echo "  \`x86_64-apple-ios-sim\`)"
+            echo "- \`libpso_zk_circuit_noir.xcframework.zip\` — combined"
+            echo "  xcframework for SwiftPM / Xcode integration"
+            echo
+            echo "### Android"
+            echo
+            echo "- \`libpso_zk_circuit_noir.so\` — per-ABI shared lib"
+            echo "  (\`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`, \`x86\`)"
+          } > body.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+          body_path: body.md
+          generate_release_notes: true
+          files: |
+            release/*
+          fail_on_unmatched_files: false

@@ -3,6 +3,12 @@
 //! Usage:
 //!   cargo xtask compile-circuits         # Compile Noir circuits and copy bytecodes
 //!   cargo xtask build-mobile <target>    # Compile circuits + build mobile crate
+
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "xtask is a developer CLI tool that prints progress / status to stdout"
+)]
 //!   cargo xtask build-kotlin [--targets] # Build Kotlin JAR with native libs + UniFFI bindings
 
 use std::path::{Path, PathBuf};

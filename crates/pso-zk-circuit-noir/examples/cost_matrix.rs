@@ -3,6 +3,12 @@
 //! Prints exactly one JSON line on stdout (so a harness can drive it
 //! cell-by-cell as separate processes and aggregate). All non-JSON
 //! output (barretenberg internal logs) goes to stderr by default.
+
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "CLI example binary that emits a JSON line on stdout by design"
+)]
 //!
 //! Usage:
 //!   cost_matrix --circuit <path> \

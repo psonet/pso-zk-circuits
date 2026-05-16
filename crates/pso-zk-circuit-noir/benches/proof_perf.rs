@@ -4,6 +4,12 @@
 //! field byte conversions, ownership generation, witness generation,
 //! and proof prove+verify round-trips.
 
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "criterion benchmark harness reports memory/timing rows to stdout"
+)]
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;

@@ -3,6 +3,12 @@
 //! The PK-build matrix (`cost_matrix`) doesn't show `low_memory` effects
 //! because `circuit_compute_vk` doesn't allocate the polynomial
 //! workspaces that low_memory mode targets. The actual cost on a mobile
+
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "CLI example binary that streams JSON cost rows to stdout"
+)]
 //! prover is the full `prove_ultra_honk_keccak` path, which IS affected
 //! by low_memory.
 //!

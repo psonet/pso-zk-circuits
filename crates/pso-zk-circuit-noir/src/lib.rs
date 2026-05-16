@@ -629,6 +629,11 @@ pub mod circuit_loader {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "test-time witness/diagnostic dumps; the deny-by-default rule in CI targets production code paths"
+)]
 mod tests {
     use crate::{
         circuit_loader, split_proof, NoirCircuitConfig, NoirFullProofCircuit, NoirOwnershipCircuit,

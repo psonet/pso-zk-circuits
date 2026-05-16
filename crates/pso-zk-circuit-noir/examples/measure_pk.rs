@@ -3,6 +3,12 @@
 //!
 //! Usage:
 //!   cargo run --release --example measure_pk -- <path/to/circuit.json>
+
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "CLI profiling example that reports timing to stdout"
+)]
 //!
 //! Loads the bytecode and invokes `derive_canonical_keccak_vk`. noir_rs
 //! prints its own `CircuitProve: Proving key computed in X ms (mem: Y MiB)`
