@@ -1,0 +1,30 @@
+tag_prefix = "v"
+branch_whitelist = ["main"]
+ignore_merge_commits = true
+generate_mono_repository_global_tag = false
+
+# Rewrite the workspace's [workspace.package].version line before cog
+# assembles its `chore(version): vX.Y.Z` commit. The `0,/RE/` sed
+# range matches only the FIRST `^version` line, which by Cargo.toml
+# convention is the workspace.package one (dependency versions are
+# nested inside `{ version = "..." }` tables and don't anchor at
+# column 0). `^version.*` covers any column alignment.
+#
+# Without this hook cog would tag the release but the workspace
+# crates would still report the old version through CARGO_PKG_VERSION
+# — drift between the tag and the artifact's self-reported version.
+pre_bump_hooks = [
+    "sed -i '0,/^version/{s/^version.*/version = \"{{version}}\"/}' Cargo.toml",
+]
+
+# After cog bumps the version + writes the tag, push both back to
+# the remote so downstream consumers (pso-chain, pso-integration)
+# can pin to the new tag.
+post_bump_hooks = [
+    "git push origin HEAD:main",
+    "git push origin v{{version}}",
+]
+
+[changelog]
+path = "CHANGELOG.md"
+authors = []
