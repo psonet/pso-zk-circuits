@@ -93,12 +93,8 @@ fn main() {
     };
 
     // Resolve relative to the crate dir so we can be invoked from any cwd.
-    let circuit_path = std::env::var("PSO_OWNERSHIP_JSON").unwrap_or_else(|_| {
-        format!(
-            "{}/data/ownership_proof.json",
-            env!("CARGO_MANIFEST_DIR")
-        )
-    });
+    let circuit_path = std::env::var("PSO_OWNERSHIP_JSON")
+        .unwrap_or_else(|_| format!("{}/data/ownership_proof.json", env!("CARGO_MANIFEST_DIR")));
     let bytecode = match circuit_loader::load_circuit(&circuit_path) {
         Ok(b) => b,
         Err(e) => {

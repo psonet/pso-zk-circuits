@@ -163,14 +163,7 @@ fn main() {
     match run_cell(&circuit_path, &oracle, zk_on, low_mem, ipa) {
         Ok((ms, rss)) => println!(
             r#"{{"label":"{}","circuit":"{}","oracle":"{}","zk":{},"low_mem":{},"ipa":{},"time_ms":{},"peak_rss_mib":{:.2},"ok":true}}"#,
-            label,
-            circuit_path,
-            oracle,
-            zk_on,
-            low_mem,
-            ipa,
-            ms,
-            rss
+            label, circuit_path, oracle, zk_on, low_mem, ipa, ms, rss
         ),
         Err(e) => {
             let msg = e.to_string().replace('"', "'").replace('\n', " ");

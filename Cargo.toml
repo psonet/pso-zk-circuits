@@ -63,6 +63,8 @@ debug = false
 # Local fork of noir_rs with barretenberg-rs bumped to 5.0.0-nightly.20260512.
 # Required so off-chain Schnorr/Grumpkin signing via barretenberg-rs 5.x's
 # `schnorr_construct_signature` shares a single C++ backend with noir_rs's
-# prove path (otherwise the two RPC schemas don't agree).
+# prove path (otherwise the two RPC schemas don't agree). Mirrors the
+# same git-rev pin used by `psonet/pso-chain` and `psonet/pso-integration`
+# so all three downstream consumers compile against the same FFI ABI.
 [patch."https://github.com/zkpassport/noir_rs"]
-noir_rs = { path = "../vendor/noir_rs" }
+noir_rs = { git = "https://github.com/psonet/noir_rs.git", rev = "9c206b22cd702373751dbab20501815090d6d7ba" }

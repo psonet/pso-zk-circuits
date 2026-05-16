@@ -34,20 +34,13 @@ pub const FULL_PROOF_JSON: &str = include_str!("../data/full_proof.json");
 /// Standalone per-NFT ownership-proof circuit JSON.
 pub const OWNERSHIP_PROOF_JSON: &str = include_str!("../data/ownership_proof.json");
 
-pub const FLAT_AGGREGATION_N1_JSON: &str =
-    include_str!("../data/flat_aggregation_n1.json");
-pub const FLAT_AGGREGATION_N2_JSON: &str =
-    include_str!("../data/flat_aggregation_n2.json");
-pub const FLAT_AGGREGATION_N4_JSON: &str =
-    include_str!("../data/flat_aggregation_n4.json");
-pub const FLAT_AGGREGATION_N8_JSON: &str =
-    include_str!("../data/flat_aggregation_n8.json");
-pub const FLAT_AGGREGATION_N16_JSON: &str =
-    include_str!("../data/flat_aggregation_n16.json");
-pub const FLAT_AGGREGATION_N32_JSON: &str =
-    include_str!("../data/flat_aggregation_n32.json");
-pub const FLAT_AGGREGATION_N64_JSON: &str =
-    include_str!("../data/flat_aggregation_n64.json");
+pub const FLAT_AGGREGATION_N1_JSON: &str = include_str!("../data/flat_aggregation_n1.json");
+pub const FLAT_AGGREGATION_N2_JSON: &str = include_str!("../data/flat_aggregation_n2.json");
+pub const FLAT_AGGREGATION_N4_JSON: &str = include_str!("../data/flat_aggregation_n4.json");
+pub const FLAT_AGGREGATION_N8_JSON: &str = include_str!("../data/flat_aggregation_n8.json");
+pub const FLAT_AGGREGATION_N16_JSON: &str = include_str!("../data/flat_aggregation_n16.json");
+pub const FLAT_AGGREGATION_N32_JSON: &str = include_str!("../data/flat_aggregation_n32.json");
+pub const FLAT_AGGREGATION_N64_JSON: &str = include_str!("../data/flat_aggregation_n64.json");
 
 /// Return the JSON document (bytecode + hash) for a given flat
 /// aggregation tier, or `None` if `tier_n` is not in
