@@ -174,10 +174,19 @@ jobs:
         !contains(github.event.head_commit.message, '[skip ci]')))
     continue-on-error: true
     strategy:
-      # Run all three iOS targets even if one fails — partial
-      # coverage is still useful when debugging cross-toolchain
-      # breakage (e.g. simulator builds work but device builds
-      # don't, or vice versa).
+      # `barretenberg-rs`'s build.rs downloads prebuilt FFI binaries
+      # and supports a fixed target list:
+      #
+      #   x86_64-linux, aarch64-linux, x86_64-apple-darwin,
+      #   aarch64-apple-darwin, aarch64-apple-ios,
+      #   aarch64-apple-ios-sim, aarch64-linux-android,
+      #   x86_64-linux-android
+      #
+      # That covers iOS device + Apple-Silicon simulator. There is
+      # no `x86_64-apple-ios-sim` rust target (the Intel simulator
+      # is `x86_64-apple-ios`, which upstream barretenberg doesn't
+      # ship either), so we don't try to build it — Apple Silicon
+      # is the only host for the iOS simulator going forward.
       fail-fast: false
       matrix:
         include:
@@ -185,8 +194,6 @@ jobs:
             label: ios-arm64
           - target: aarch64-apple-ios-sim
             label: ios-sim-arm64
-          - target: x86_64-apple-ios-sim
-            label: ios-sim-x86_64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -330,20 +337,23 @@ jobs:
         !contains(github.event.head_commit.message, '[skip ci]')))
     continue-on-error: true
     strategy:
+      # `barretenberg-rs` only ships prebuilt FFI binaries for the
+      # 64-bit Android targets (`aarch64-linux-android` and
+      # `x86_64-linux-android`). The 32-bit ABIs (armeabi-v7a / x86)
+      # would compile but the build script hard-fails with
+      # "Unsupported target for FFI backend" before even invoking
+      # the cross-toolchain — see the barretenberg-rs 5.x build.rs
+      # supported-target list. Dropping them from the matrix until
+      # upstream ships 32-bit binaries.
       fail-fast: false
       matrix:
         include:
           - target: aarch64-linux-android
             label: android-arm64-v8a
             abi: arm64-v8a
-          - target: armv7-linux-androideabi
-            label: android-armeabi-v7a
-            abi: armeabi-v7a
           - target: x86_64-linux-android
             label: android-x86_64
             abi: x86_64
-          - target: i686-linux-android
-            label: android-x86
             abi: x86
     steps:
       - uses: actions/checkout@v4
