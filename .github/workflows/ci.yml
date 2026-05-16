@@ -354,7 +354,6 @@ jobs:
           - target: x86_64-linux-android
             label: android-x86_64
             abi: x86_64
-            abi: x86
     steps:
       - uses: actions/checkout@v4
         with:
