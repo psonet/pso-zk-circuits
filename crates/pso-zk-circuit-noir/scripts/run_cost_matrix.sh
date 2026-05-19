@@ -18,6 +18,9 @@ cd "$(dirname "$0")/.."
 CRATE_DIR="$(pwd)"
 BIN="$(cd ../../ && pwd)/target/release/examples/cost_matrix"
 DATA_REGULAR="${CRATE_DIR}/data"
+# `data_rolluphonk/` was retired (rolluphonk variant proven non-viable
+# in earlier matrix runs — barretenberg caps accumulated IPA claims
+# at <4). Phase 2 below is skipped when this dir is absent.
 DATA_ROLLUPHONK="${CRATE_DIR}/data_rolluphonk"
 OUT_JSONL="/tmp/pso-cost-matrix.jsonl"
 OUT_MD="${CRATE_DIR}/docs/proving-cost-matrix.md"
@@ -37,7 +40,7 @@ run() {
     regular)    dir="$DATA_REGULAR";;
     rolluphonk) dir="$DATA_ROLLUPHONK";;
   esac
-  local circuit="$dir/recursive_aggregation_n${tier}.json"
+  local circuit="$dir/flat_aggregation_n${tier}.json"
   if [[ ! -f "$circuit" ]]; then
     echo "{\"label\":\"$label\",\"ok\":false,\"error\":\"missing circuit: $circuit\"}" >> "$OUT_JSONL"
     return
@@ -77,16 +80,20 @@ for oracle in keccak poseidon2; do
   done
 done
 
-echo "=== Phase 2: rolluphonk (verify_rolluphonk_proof, ipa=true forced) ===" >&2
-# rolluphonk requires poseidon2 + ipa=true.
-for tier in 1 2 4 8; do
-  for zk in off on; do
-    for low_mem in off on; do
-      label="rh/N=${tier}/poseidon2/zk=${zk}/lm=${low_mem}"
-      run "$label" rolluphonk "$tier" poseidon2 "$zk" "$low_mem" on
+if [[ -d "$DATA_ROLLUPHONK" ]]; then
+  echo "=== Phase 2: rolluphonk (verify_rolluphonk_proof, ipa=true forced) ===" >&2
+  # rolluphonk requires poseidon2 + ipa=true.
+  for tier in 1 2 4 8; do
+    for zk in off on; do
+      for low_mem in off on; do
+        label="rh/N=${tier}/poseidon2/zk=${zk}/lm=${low_mem}"
+        run "$label" rolluphonk "$tier" poseidon2 "$zk" "$low_mem" on
+      done
     done
   done
-done
+else
+  echo "=== Phase 2 skipped: $DATA_ROLLUPHONK absent ===" >&2
+fi
 
 echo "=== Generating markdown report ===" >&2
 
