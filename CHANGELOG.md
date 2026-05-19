@@ -2,6 +2,23 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.0 - 2026-05-19
+#### Features
+- enable cog-driven auto-release for first crates.io publish - (a6ba1b6) - Anton Velichko
+#### Continuous Integration
+- (**deny**) drop PAT step — psonet git deps are public - (cbb7895) - Anton Velichko
+- (**deny**) run cargo-deny on the host, not in the container action - (91420da) - Anton Velichko
+- (**deny**) add cargo-deny supply-chain enforcement - (4806ad8) - Anton Velichko
+- drop orphan `abi: x86` line that survived the matrix trim - (10e9baa) - Anton Velichko
+- trim build matrix to barretenberg-rs-supported targets - (fe2be65) - Anton Velichko
+- unified pipeline — check, mobile artifacts, tag, publish, release - (7e2f6d3) - Anton Velichko
+- add lint + test workflow and align noir_rs patch with sibling repos - (aa27d6d) - Anton Velichko
+#### Miscellaneous Chores
+- (**deps**) pin noir_rs to rev + add README badges - (ef7546f) - Anton Velichko
+- (**deps**) drop workspace [patch] for noir_rs, point dep at fork branch - (88b63e7) - Anton Velichko
+
+- - -
+
 ## v0.1.0 - 2026-05-16
 #### Features
 - (**circuits**) Schnorr/Grumpkin flat aggregation - (5655d5c) - Anton Velichko
