@@ -79,10 +79,10 @@ fn run_cell(
     ipa: bool,
 ) -> anyhow::Result<(u128, f64)> {
     // Belt-and-suspenders: writes both env vars + C++ globals.
-    noir_rs::barretenberg::api::configure_memory(low_mem, None);
+    pso_zk_circuit_noir::vendor::noir_rs::barretenberg::api::configure_memory(low_mem, None);
 
     let bc_b64 = read_bytecode_b64(circuit_path)?;
-    let acir = noir_rs::circuit::get_acir_buffer_uncompressed(&bc_b64)
+    let acir = pso_zk_circuit_noir::vendor::noir_rs::circuit::get_acir_buffer_uncompressed(&bc_b64)
         .map_err(|e| anyhow::anyhow!("get_acir_buffer_uncompressed: {e}"))?;
 
     // For the regular path, auto-size the BN254 SRS to the circuit's
@@ -124,7 +124,7 @@ fn run_cell(
         api.srs_init_srs(&g1, num_bn, &BN254_G2)
             .map_err(|e| anyhow::anyhow!("srs_init_srs (ipa path): {e}"))?;
     } else {
-        let _ = noir_rs::barretenberg::srs::setup_srs_from_bytecode(&bc_b64, None, false)
+        let _ = pso_zk_circuit_noir::vendor::noir_rs::barretenberg::srs::setup_srs_from_bytecode(&bc_b64, None, false)
             .map_err(|e| anyhow::anyhow!("setup_srs_from_bytecode: {e}"))?;
     }
 

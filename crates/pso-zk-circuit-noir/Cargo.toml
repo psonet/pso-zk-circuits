@@ -19,16 +19,28 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # Witness types, hash formulas, and consensus-binding primitives.
 pso-protocol = { workspace = true }
 
-# Noir integration via noir-rs. Sourced from the psonet fork
-# (chore/align-barretenberg-version-with-noir is the source branch),
-# which bumps barretenberg-rs to 5.0.0-nightly.20260512 to share a
-# single C++ backend with the prove path. Tracks an open PR back to
-# upstream zkpassport/noir_rs; flip to the upstream tag once that
-# lands. Pinned by `rev` rather than branch so the dep doesn't slide
-# on `cargo update`. `version = "=1.0.0-beta.20"` pins the exact
-# prerelease for cargo-deny's wildcard check.
-noir_rs = { version = "=1.0.0-beta.20", git = "https://github.com/psonet/noir_rs", rev = "9c206b22cd702373751dbab20501815090d6d7ba", features = ["barretenberg"] }
-barretenberg-rs = { workspace = true }
+# Noir proving glue. The thin set of noir_rs entry points we use
+# (~821 LOC across 13 files) is vendored under
+# `src/vendor/noir_rs/` (Apache-2.0; see `NOTICE.md` and
+# `vendor/noir_rs/LICENSE`). The four noir-lang/noir crates plus
+# `barretenberg-rs` below are the direct deps the vendored code
+# consumes; they were previously transitive via noir_rs and remain
+# pinned to the same `v1.0.0-beta.20` git rev so the resulting dep
+# graph (and therefore proof output) is identical to pre-vendoring.
+acvm                  = { workspace = true }
+acvm_blackbox_solver  = { workspace = true }
+bn254_blackbox_solver = { workspace = true }
+nargo                 = { workspace = true }
+barretenberg-rs       = { workspace = true }
+
+# Direct deps required by the vendored noir_rs proving glue. Same
+# versions upstream noir_rs declared.
+base64  = { workspace = true }
+flate2  = { workspace = true }
+bincode = { workspace = true }
+reqwest = { workspace = true }
+serde   = { workspace = true }
+
 anyhow.workspace = true
 # Hex encoding for bytecode
 bs58.workspace = true
@@ -48,10 +60,9 @@ rand       = { workspace = true }
 criterion = { version = "0.5", features = ["html_reports"] }
 # Used by `examples/measure_pk.rs` to read peak macOS RSS.
 libc = "0.2"
-# Used by `examples/measure_pk_rolluphonk.rs` for direct barretenberg-rs
-# calls (Grumpkin SRS + IPA-accumulation circuit_compute_vk).
-base64 = "0.22"
-reqwest = { version = "0.12", features = ["blocking"] }
+# `base64` and `reqwest` were duplicated here for examples; both are
+# now [dependencies] (pulled in by the vendored noir_rs glue) so the
+# dev-dep entries are redundant.
 # Canonical descriptors (circuit_hash + canonical VK bytes). Used by
 # the aggregation integration tests so they verify against the same
 # VK that the on-chain `zk_verify` precompile consumes.

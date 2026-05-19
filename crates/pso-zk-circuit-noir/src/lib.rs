@@ -9,6 +9,15 @@ pub mod schnorr_grumpkin;
 pub mod testing;
 pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 
+// Vendored noir_rs proving glue (Apache-2.0, from
+// zkpassport/noir_rs). See `NOTICE.md` and
+// `vendor/noir_rs/LICENSE` for attribution. Public so examples and
+// integration tests can reach `vendor::noir_rs::barretenberg::api`
+// (low-memory configuration) and `vendor::noir_rs::circuit`
+// (bytecode helpers) without re-exporting every symbol at the
+// crate root.
+pub mod vendor;
+
 // -----------------------------------------------------------------
 // Canonical-circuit JSON exports.
 //
@@ -63,15 +72,15 @@ pub fn flat_aggregation_json(tier_n: u32) -> Option<&'static str> {
 use std::fmt::{Debug, Formatter};
 
 use anyhow::Error;
-use noir_rs::acir::native_types::WitnessMap;
-use noir_rs::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
-use noir_rs::barretenberg::srs::setup_srs_from_bytecode;
-use noir_rs::barretenberg::verify::{
+use acvm::acir::native_types::WitnessMap;
+use acvm::{AcirField, FieldElement};
+use crate::vendor::noir_rs::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
+use crate::vendor::noir_rs::barretenberg::srs::setup_srs_from_bytecode;
+use crate::vendor::noir_rs::barretenberg::verify::{
     get_ultra_honk_keccak_verification_key, get_ultra_honk_verification_key, verify_ultra_honk,
     verify_ultra_honk_keccak,
 };
-use noir_rs::witness::from_vec_to_witness_map;
-use noir_rs::{AcirField, FieldElement};
+use crate::vendor::noir_rs::witness::from_vec_to_witness_map;
 
 use pso_protocol::witness::{FullProofWitness, OwnershipWitness};
 
@@ -579,7 +588,7 @@ pub fn derive_canonical_keccak_vk(bytecode: &str) -> anyhow::Result<Vec<u8>> {
     // many points in MemBn254CrsFactory`. 2^21 = 2,097,152 points
     // covers our largest circuit (N=64 acir ~5.5 MB) with headroom
     // and the SRS download is cached locally after the first run.
-    use noir_rs::barretenberg::srs::setup_srs;
+    use crate::vendor::noir_rs::barretenberg::srs::setup_srs;
     const SRS_POINTS: u32 = 1 << 21;
     let _ = setup_srs(SRS_POINTS, None).map_err(Error::msg)?;
     let vk =
@@ -641,7 +650,7 @@ mod tests {
     };
     use ark_bn254::Fr;
     use ark_ff::UniformRand;
-    use noir_rs::{AcirField, FieldElement};
+    use acvm::{AcirField, FieldElement};
     use rand::rngs::OsRng;
 
     use crate::{testing, ZKCircuit};
