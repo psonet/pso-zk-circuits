@@ -10,13 +10,16 @@ pub mod testing;
 pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 
 // Vendored noir_rs proving glue (Apache-2.0, from
-// zkpassport/noir_rs). See `NOTICE.md` and
-// `vendor/noir_rs/LICENSE` for attribution. Public so examples and
-// integration tests can reach `vendor::noir_rs::barretenberg::api`
-// (low-memory configuration) and `vendor::noir_rs::circuit`
-// (bytecode helpers) without re-exporting every symbol at the
-// crate root.
-pub mod vendor;
+// zkpassport/noir_rs). See `NOTICE.md` and `vendor/noir_rs/LICENSE`
+// for attribution. Per-file SPDX headers stay on each `.rs` so the
+// flattened layout doesn't lose the third-party signal. Public so
+// examples and integration tests can reach `barretenberg::api`
+// (low-memory configuration) and `circuit` (bytecode helpers)
+// without re-exporting every symbol at the crate root.
+pub mod barretenberg;
+pub mod circuit;
+mod execute;
+pub mod witness;
 
 // -----------------------------------------------------------------
 // Canonical-circuit JSON exports.
@@ -74,13 +77,13 @@ use std::fmt::{Debug, Formatter};
 use anyhow::Error;
 use acvm::acir::native_types::WitnessMap;
 use acvm::{AcirField, FieldElement};
-use crate::vendor::noir_rs::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
-use crate::vendor::noir_rs::barretenberg::srs::setup_srs_from_bytecode;
-use crate::vendor::noir_rs::barretenberg::verify::{
+use crate::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
+use crate::barretenberg::srs::setup_srs_from_bytecode;
+use crate::barretenberg::verify::{
     get_ultra_honk_keccak_verification_key, get_ultra_honk_verification_key, verify_ultra_honk,
     verify_ultra_honk_keccak,
 };
-use crate::vendor::noir_rs::witness::from_vec_to_witness_map;
+use crate::witness::from_vec_to_witness_map;
 
 use pso_protocol::witness::{FullProofWitness, OwnershipWitness};
 
@@ -588,7 +591,7 @@ pub fn derive_canonical_keccak_vk(bytecode: &str) -> anyhow::Result<Vec<u8>> {
     // many points in MemBn254CrsFactory`. 2^21 = 2,097,152 points
     // covers our largest circuit (N=64 acir ~5.5 MB) with headroom
     // and the SRS download is cached locally after the first run.
-    use crate::vendor::noir_rs::barretenberg::srs::setup_srs;
+    use crate::barretenberg::srs::setup_srs;
     const SRS_POINTS: u32 = 1 << 21;
     let _ = setup_srs(SRS_POINTS, None).map_err(Error::msg)?;
     let vk =

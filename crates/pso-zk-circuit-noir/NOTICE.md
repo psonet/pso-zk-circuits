@@ -1,8 +1,12 @@
 ## Third-party code attribution
 
 This crate includes code derived from
-[zkpassport/noir_rs](https://github.com/zkpassport/noir_rs) (Apache-2.0),
-vendored under `src/vendor/noir_rs/`.
+[zkpassport/noir_rs](https://github.com/zkpassport/noir_rs) (Apache-2.0).
+The vendored files live directly under `src/` (the `barretenberg/`,
+`circuit.rs`, `execute.rs`, and `witness.rs` modules); each carries
+an SPDX `Apache-2.0` header and a "Vendored from zkpassport/noir_rs"
+attribution comment so the third-party signal is preserved without a
+nested `vendor/` directory.
 
 See `vendor/noir_rs/LICENSE` for the original license terms.
 

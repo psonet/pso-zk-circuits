@@ -8,9 +8,9 @@ use super::api::{
     self, configure_memory, proof_fields_to_bytes, settings_ultra_honk_poseidon2,
     settings_ultra_honk_keccak,
 };
-use crate::vendor::noir_rs::circuit::get_acir_buffer_uncompressed;
-use crate::vendor::noir_rs::execute::execute;
-use crate::vendor::noir_rs::witness::serialize_witness;
+use crate::circuit::get_acir_buffer_uncompressed;
+use crate::execute::execute;
+use crate::witness::serialize_witness;
 
 /// Generate an Ultra Honk proof for the given circuit bytecode and initial witness.
 /// Will execute the circuit to make sure it is solved.

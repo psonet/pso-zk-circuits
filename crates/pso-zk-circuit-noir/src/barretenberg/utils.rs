@@ -3,7 +3,7 @@
 // See `pso-zk-circuit-noir/vendor/noir_rs/LICENSE` for the original license.
 
 use super::api::{self, settings_ultra_honk_poseidon2};
-use crate::vendor::noir_rs::circuit::decode_circuit;
+use crate::circuit::decode_circuit;
 
 /// Compute the next power of two that is >= `circuit_size`.
 pub fn compute_subgroup_size(circuit_size: u32) -> u32 {

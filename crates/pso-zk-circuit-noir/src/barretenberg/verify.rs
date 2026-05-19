@@ -6,7 +6,7 @@ use super::api::{
     self, configure_memory, proof_bytes_to_fields, settings_ultra_honk_poseidon2, settings_ultra_honk_keccak,
     FIELD_ELEMENT_SIZE,
 };
-use crate::vendor::noir_rs::circuit::decode_circuit;
+use crate::circuit::decode_circuit;
 
 /// Split a flat proof byte vector into public_inputs and proof fields.
 ///
