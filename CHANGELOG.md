@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.1 - 2026-05-19
+#### Bug Fixes
+- bump internal workspace.dependencies version constraints to ^0.2 - (c575132) - Anton Velichko
+- align workspace + child crate versions; drop unpublishable noir crate from crates.io - (4da87de) - Anton Velichko
+
+- - -
+
 ## v0.2.0 - 2026-05-19
 #### Features
 - enable cog-driven auto-release for first crates.io publish - (a6ba1b6) - Anton Velichko
