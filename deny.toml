@@ -136,9 +136,12 @@ allow-git = [
     # noir-lang upstream — acir / acvm / nargo / noirc_* are all
     # consumed via this single git origin (pinned per-rev in Cargo.lock).
     "https://github.com/noir-lang/noir",
-    # psonet fork of noir_rs with barretenberg-rs pinned to the
-    # nightly the wallet SDK consumers (pso-chain, pso-integration)
-    # also build against. See the [patch] block in Cargo.toml.
+    # psonet fork of noir_rs (chore/align-barretenberg-version-with-noir
+    # branch). Consumed directly from pso-zk-circuit-noir's Cargo.toml
+    # — there is no [patch.crates-io] override. The fork bumps
+    # barretenberg-rs to the nightly the wallet SDK consumers
+    # (pso-chain, pso-integration) also build against; tracks an
+    # open PR back to upstream zkpassport/noir_rs.
     "https://github.com/psonet/noir_rs",
     # pso-protocol is consumed as a git dep against main while the
     # two repos co-evolve; flips to a crates.io version once
