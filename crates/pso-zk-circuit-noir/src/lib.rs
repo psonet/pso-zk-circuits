@@ -16,9 +16,18 @@ pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 // examples and integration tests can reach `barretenberg::api`
 // (low-memory configuration) and `circuit` (bytecode helpers)
 // without re-exporting every symbol at the crate root.
+//
+// `#[allow(clippy::all, unused)]` is applied to each vendored
+// module so this crate's own clippy linting stays strict while the
+// upstream code keeps its original style. Lint-level attributes
+// on `mod` declarations propagate into the module's descendants.
+#[allow(clippy::all, unused)]
 pub mod barretenberg;
+#[allow(clippy::all, unused)]
 pub mod circuit;
+#[allow(clippy::all, unused)]
 mod execute;
+#[allow(clippy::all, unused)]
 pub mod witness;
 
 // -----------------------------------------------------------------
@@ -74,9 +83,6 @@ pub fn flat_aggregation_json(tier_n: u32) -> Option<&'static str> {
 
 use std::fmt::{Debug, Formatter};
 
-use anyhow::Error;
-use acvm::acir::native_types::WitnessMap;
-use acvm::{AcirField, FieldElement};
 use crate::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
 use crate::barretenberg::srs::setup_srs_from_bytecode;
 use crate::barretenberg::verify::{
@@ -84,6 +90,9 @@ use crate::barretenberg::verify::{
     verify_ultra_honk_keccak,
 };
 use crate::witness::from_vec_to_witness_map;
+use acvm::acir::native_types::WitnessMap;
+use acvm::{AcirField, FieldElement};
+use anyhow::Error;
 
 use pso_protocol::witness::{FullProofWitness, OwnershipWitness};
 
@@ -651,9 +660,9 @@ mod tests {
         circuit_loader, split_proof, NoirCircuitConfig, NoirFullProofCircuit, NoirOwnershipCircuit,
         ZKMode, SPARSE_MERKLE_PATH_DEPTH,
     };
+    use acvm::{AcirField, FieldElement};
     use ark_bn254::Fr;
     use ark_ff::UniformRand;
-    use acvm::{AcirField, FieldElement};
     use rand::rngs::OsRng;
 
     use crate::{testing, ZKCircuit};

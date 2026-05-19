@@ -124,8 +124,9 @@ fn run_cell(
         api.srs_init_srs(&g1, num_bn, &BN254_G2)
             .map_err(|e| anyhow::anyhow!("srs_init_srs (ipa path): {e}"))?;
     } else {
-        let _ = pso_zk_circuit_noir::barretenberg::srs::setup_srs_from_bytecode(&bc_b64, None, false)
-            .map_err(|e| anyhow::anyhow!("setup_srs_from_bytecode: {e}"))?;
+        let _ =
+            pso_zk_circuit_noir::barretenberg::srs::setup_srs_from_bytecode(&bc_b64, None, false)
+                .map_err(|e| anyhow::anyhow!("setup_srs_from_bytecode: {e}"))?;
     }
 
     let backend = FfiBackend::new().map_err(|e| anyhow::anyhow!("FfiBackend: {e}"))?;

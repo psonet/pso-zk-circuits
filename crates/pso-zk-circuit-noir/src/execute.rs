@@ -2,10 +2,13 @@
 // Vendored from zkpassport/noir_rs (Apache-2.0).
 // See `pso-zk-circuit-noir/vendor/noir_rs/LICENSE` for the original license.
 
-use acvm::acir::{native_types::{WitnessMap, WitnessStack}, FieldElement};
+use acvm::acir::{
+    native_types::{WitnessMap, WitnessStack},
+    FieldElement,
+};
 use bn254_blackbox_solver::Bn254BlackBoxSolver;
-use nargo::ops::execute_program;
 use nargo::foreign_calls::default::DefaultForeignCallBuilder;
+use nargo::ops::execute_program;
 
 use super::circuit::get_program;
 
@@ -19,14 +22,22 @@ use super::circuit::get_program;
 /// # Returns
 ///
 /// The Witness Stack
-pub fn execute(circuit_bytecode: &str, initial_witness: WitnessMap<FieldElement>) -> Result<WitnessStack<FieldElement>, String> {
+pub fn execute(
+    circuit_bytecode: &str,
+    initial_witness: WitnessMap<FieldElement>,
+) -> Result<WitnessStack<FieldElement>, String> {
     let program = get_program(circuit_bytecode)?;
 
     let blackbox_solver = Bn254BlackBoxSolver::default();
     let mut foreign_call_executor = DefaultForeignCallBuilder::default().build();
 
-    let solved_witness =
-        execute_program(&program, initial_witness, &blackbox_solver, &mut foreign_call_executor).map_err(|e| e.to_string())?;
+    let solved_witness = execute_program(
+        &program,
+        initial_witness,
+        &blackbox_solver,
+        &mut foreign_call_executor,
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(solved_witness)
 }
