@@ -38,6 +38,8 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  schedule:
+    - cron: '0 4 * * *'
   workflow_dispatch:
     inputs:
       tag:
@@ -86,6 +88,38 @@ jobs:
           esac
           echo "release_tag=${tag}"
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------
+  # Supply-chain enforcement. Runs on every PR + nightly cron @ 04:00 UTC.
+  # Independent of the rest of the pipeline so a fresh advisory surfacing
+  # nightly is visible without rerunning the noir-heavy check job.
+  #
+  # Runs cargo-deny on the host (not the EmbarkStudios container
+  # action) so cargo-metadata can use the host's git config to
+  # fetch the workspace's `ssh://git@github.com/...` deps. All of
+  # those repos (psonet/pso-protocol, psonet/noir_rs,
+  # noir-lang/noir) are public, so a no-auth ssh -> https rewrite
+  # is sufficient — no PAT or credential helper needed.
+  # --------------------------------------------------------------
+  cargo-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rewrite ssh:// psonet git URLs to https://
+        run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: cargo
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: cargo deny check all
+        run: cargo deny check all
 
   # --------------------------------------------------------------
   # Format + clippy + cargo test on stable & beta. Runs on PR +
