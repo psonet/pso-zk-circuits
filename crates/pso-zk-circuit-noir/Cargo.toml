@@ -19,8 +19,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # Witness types, hash formulas, and consensus-binding primitives.
 pso-protocol = { workspace = true }
 
-# Noir integration via noir-rs (optional, requires long compilation)
-noir_rs = { git = "https://github.com/zkpassport/noir_rs", tag = "v1.0.0-beta.20-1", features = ["barretenberg"] }
+# Noir integration via noir-rs (optional, requires long compilation).
+# `version = "=1.0.0-beta.20"` pins the exact prerelease for cargo-deny's
+# wildcard check; cargo still resolves the source via the workspace
+# [patch] override pointing at psonet/noir_rs.
+noir_rs = { version = "=1.0.0-beta.20", git = "https://github.com/zkpassport/noir_rs", tag = "v1.0.0-beta.20-1", features = ["barretenberg"] }
 barretenberg-rs = { workspace = true }
 anyhow.workspace = true
 # Hex encoding for bytecode

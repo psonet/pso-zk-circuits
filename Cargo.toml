@@ -11,15 +11,20 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-# Internal crates
-pso-zk-circuit-noir = { path = "crates/pso-zk-circuit-noir" }
-pso-zk-canonical    = { path = "crates/pso-zk-canonical" }
+# Internal crates. The `version` field alongside `path` is required
+# by cargo-deny's wildcard check for publishable crates — cargo
+# prefers the path dep for local dev and the version takes effect
+# when these crates are consumed off crates.io.
+pso-zk-circuit-noir = { version = "0.1", path = "crates/pso-zk-circuit-noir" }
+pso-zk-canonical    = { version = "0.1", path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Tracked against the
 # `main` branch while both repos co-evolve; pin to a specific
-# rev or tag at release time. Flip to `version = "0.1"` from
-# crates.io once `pso-protocol` is published.
-pso-protocol = { git = "ssh://git@github.com/psonet/pso-protocol.git", branch = "main" }
+# rev or tag at release time. The `version = "0.1"` alongside
+# the git ref satisfies cargo-deny's wildcard check and is
+# forward-compatible with the eventual flip to a pure crates.io
+# dep once `pso-protocol` is published.
+pso-protocol = { version = "0.1", git = "ssh://git@github.com/psonet/pso-protocol.git", branch = "main" }
 
 # External
 pso-poseidon = "0.2"

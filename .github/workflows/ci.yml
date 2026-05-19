@@ -38,6 +38,8 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  schedule:
+    - cron: '0 4 * * *'
   workflow_dispatch:
     inputs:
       tag:
@@ -86,6 +88,20 @@ jobs:
           esac
           echo "release_tag=${tag}"
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------
+  # Supply-chain enforcement. Runs on every PR + nightly cron @ 04:00 UTC.
+  # Independent of the rest of the pipeline so a fresh advisory surfacing
+  # nightly is visible without rerunning the noir-heavy check job.
+  # --------------------------------------------------------------
+  cargo-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check all
 
   # --------------------------------------------------------------
   # Format + clippy + cargo test on stable & beta. Runs on PR +
