@@ -531,24 +531,18 @@ jobs:
         with:
           components: cargo
 
+      # Only `pso-zk-canonical` ships to crates.io. `pso-zk-circuit-noir`
+      # depends on `noir_rs` via a git ref that crates.io cannot resolve
+      # (upstream noir_rs publishes at much older versions), so it is
+      # distributed only via git deps + the mobile binaries attached to
+      # each GH Release. Re-enable the publish step here once upstream
+      # noir_rs publishes 1.0.0-beta.20+ to crates.io.
       - name: Publish pso-zk-canonical
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           set -euo pipefail
           cargo publish -p pso-zk-canonical --token "${CARGO_REGISTRY_TOKEN}" --no-verify
-
-      # Brief sleep so crates.io's index catches up before the
-      # dependent crate tries to resolve `pso-zk-canonical = "X.Y.Z"`.
-      - name: Wait for crates.io index
-        run: sleep 30
-
-      - name: Publish pso-zk-circuit-noir
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          set -euo pipefail
-          cargo publish -p pso-zk-circuit-noir --token "${CARGO_REGISTRY_TOKEN}" --no-verify
 
   # --------------------------------------------------------------
   # Release. Gated on `tag.outputs.tag != ''` (cog bumped on main

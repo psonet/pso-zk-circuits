@@ -1,6 +1,6 @@
 [package]
 name = "pso-zk-circuit-noir"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 description = "Noir circuit implementation for ZK proofs - ownership and Merkle inclusion"
 license = "Apache-2.0"

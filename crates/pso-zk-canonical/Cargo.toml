@@ -1,7 +1,7 @@
 [package]
-name        = "pso-zk-canonical"
-version     = "0.1.0"
-edition     = "2021"
+name             = "pso-zk-canonical"
+version.workspace = true
+edition          = "2021"
 description = "Canonical PSO Noir circuit descriptors — circuit_hash, VK bytes, vk_hash, label. Authoritative on-chain identity source for the privacy-preserving L2 zk_verify precompile."
 license     = "Apache-2.0"
 repository  = "https://github.com/psonet/pso-zk-circuits"
