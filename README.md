@@ -1,5 +1,7 @@
 # pso-zk-circuits
 
+[![release](https://img.shields.io/github/v/release/psonet/pso-zk-circuits.svg)](https://github.com/psonet/pso-zk-circuits/releases)
+[![CI](https://github.com/psonet/pso-zk-circuits/actions/workflows/ci.yml/badge.svg)](https://github.com/psonet/pso-zk-circuits/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Noir circuits and the Rust FFI prover wrapper** for the PSO

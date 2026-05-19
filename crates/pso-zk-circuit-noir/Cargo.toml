@@ -19,14 +19,15 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # Witness types, hash formulas, and consensus-binding primitives.
 pso-protocol = { workspace = true }
 
-# Noir integration via noir-rs. Sourced directly from the psonet
-# fork (chore/align-barretenberg-version-with-noir), which bumps
-# barretenberg-rs to 5.0.0-nightly.20260512 to share a single C++
-# backend with the prove path. Tracks an open PR back to upstream
-# zkpassport/noir_rs; flip to the upstream tag once that lands.
-# `version = "=1.0.0-beta.20"` pins the exact prerelease for
-# cargo-deny's wildcard check.
-noir_rs = { version = "=1.0.0-beta.20", git = "https://github.com/psonet/noir_rs", branch = "chore/align-barretenberg-version-with-noir", features = ["barretenberg"] }
+# Noir integration via noir-rs. Sourced from the psonet fork
+# (chore/align-barretenberg-version-with-noir is the source branch),
+# which bumps barretenberg-rs to 5.0.0-nightly.20260512 to share a
+# single C++ backend with the prove path. Tracks an open PR back to
+# upstream zkpassport/noir_rs; flip to the upstream tag once that
+# lands. Pinned by `rev` rather than branch so the dep doesn't slide
+# on `cargo update`. `version = "=1.0.0-beta.20"` pins the exact
+# prerelease for cargo-deny's wildcard check.
+noir_rs = { version = "=1.0.0-beta.20", git = "https://github.com/psonet/noir_rs", rev = "9c206b22cd702373751dbab20501815090d6d7ba", features = ["barretenberg"] }
 barretenberg-rs = { workspace = true }
 anyhow.workspace = true
 # Hex encoding for bytecode
