@@ -544,6 +544,24 @@ jobs:
           set -euo pipefail
           cargo publish -p pso-zk-canonical --token "${CARGO_REGISTRY_TOKEN}" --no-verify
 
+      # Re-create the .crate locally so the `github-release` job can
+      # attach the byte-identical tarball. `cargo publish` cleans up
+      # target/package/*.crate after a successful upload; `cargo
+      # package --no-verify -p pso-zk-canonical` is fast and
+      # deterministic given the same source.
+      - name: Re-package pso-zk-canonical .crate for artifact upload
+        if: success()
+        run: cargo package --no-verify -p pso-zk-canonical
+
+      - name: Upload .crate as workflow artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crate-tarball
+          path: target/package/pso-zk-canonical-*.crate
+          if-no-files-found: error
+          retention-days: 1
+
   # --------------------------------------------------------------
   # Release. Gated on `tag.outputs.tag != ''` (cog bumped on main
   # push) OR `resolve.outputs.release_tag != ''` (manual tag push /
@@ -571,16 +589,23 @@ jobs:
           pattern: pso-zk-circuit-noir-*
           merge-multiple: false
 
-      - name: Flatten + rename artifacts
+      - name: Download pso-zk-canonical .crate artifact
+        if: needs.publish-crates-io.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: crate-tarball
+          path: artifacts/crate/
+
+      - name: Stage release artifacts
         run: |
           set -euo pipefail
           mkdir -p release/
-          # actions/download-artifact@v4 with merge-multiple: false
-          # writes each artifact into its own subdir matching the
-          # upload name. Walk those subdirs and copy the inner file
-          # out, prefixing it with the artifact name so two `.a`
-          # files (one per slice) don't collide.
           shopt -s nullglob
+          # Mobile slices — actions/download-artifact@v4 with
+          # merge-multiple: false writes each artifact into its own
+          # subdir matching the upload name. Walk those subdirs and
+          # copy the inner file out, prefixing it with the artifact
+          # name so two `.a` files (one per slice) don't collide.
           for dir in artifacts/pso-zk-circuit-noir-*/; do
             name="$(basename "$dir")"
             for f in "$dir"*; do
@@ -588,22 +613,48 @@ jobs:
               cp "$f" "release/${name}-${fname}"
             done
           done
-          ls -lh release/ || echo "(no artifacts assembled)"
+          # pso-zk-canonical .crate — byte-identical to the
+          # crates.io upload, attached for downstream consumers that
+          # prefer GitHub-hosted artifacts.
+          for f in artifacts/crate/pso-zk-canonical-*.crate; do
+            cp "$f" "release/$(basename "$f")"
+          done
+          # SHA256SUMS over everything in release/ — the signing
+          # pipeline (T-0020) hashes this same set.
+          if [ -n "$(ls -A release/ 2>/dev/null)" ]; then
+            cd release
+            shasum -a 256 * > SHA256SUMS
+            echo "---"
+            cat SHA256SUMS
+          else
+            echo "(no artifacts assembled)"
+          fi
 
       - name: Compose release body
         env:
           TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+          PUBLISH_RESULT: ${{ needs.publish-crates-io.result }}
         run: |
           set -euo pipefail
           {
-            echo "## Mobile artifacts"
+            echo "## Install (Rust)"
+            echo
+            echo "    cargo add pso-zk-canonical@${TAG#v}"
+            echo
+            echo "## Artifacts"
+            echo
+            echo "### crates.io"
+            echo
+            echo "- \`pso-zk-canonical-${TAG#v}.crate\` — byte-identical to the crates.io upload."
+            echo
+            echo "### Mobile slices"
             echo
             echo "Pre-built \`libpso_zk_circuit_noir\` for iOS + Android targets."
             echo "Whichever cross-toolchain targets succeeded on this run are"
             echo "attached below; missing slices indicate a barretenberg-rs"
             echo "cross-build failure on that target (see workflow logs)."
             echo
-            echo "### iOS"
+            echo "#### iOS"
             echo
             echo "- \`libpso_zk_circuit_noir.a\` — per-target static lib"
             echo "  (\`aarch64-apple-ios\`, \`aarch64-apple-ios-sim\`,"
@@ -611,10 +662,18 @@ jobs:
             echo "- \`libpso_zk_circuit_noir.xcframework.zip\` — combined"
             echo "  xcframework for SwiftPM / Xcode integration"
             echo
-            echo "### Android"
+            echo "#### Android"
             echo
             echo "- \`libpso_zk_circuit_noir.so\` — per-ABI shared lib"
             echo "  (\`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`, \`x86\`)"
+            echo
+            echo "### Verification"
+            echo
+            echo "- \`SHA256SUMS\` — SHA-256 of every other file attached to this release."
+            echo
+            echo "## CI"
+            echo
+            echo "- crates.io publish: ${PUBLISH_RESULT}"
           } > body.md
 
       - name: Create release
