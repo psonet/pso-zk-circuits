@@ -35,8 +35,8 @@ pub mod witness;
 // witnesses, so they don't have to take `acvm` as a separate direct
 // dep. Matches what upstream `noir_rs/src/lib.rs` does with `pub use
 // acvm::*`, just scoped to the symbols PSO consumers actually touch.
-pub use acvm::{AcirField, FieldElement};
 pub use acvm::acir::native_types::{Witness, WitnessMap, WitnessStack};
+pub use acvm::{AcirField, FieldElement};
 
 // -----------------------------------------------------------------
 // Canonical-circuit JSON exports.
