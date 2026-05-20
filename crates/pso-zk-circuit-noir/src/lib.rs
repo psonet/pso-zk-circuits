@@ -9,6 +9,27 @@ pub mod schnorr_grumpkin;
 pub mod testing;
 pub use circuit_traits::{Proof, ZKCircuit, ZKCircuitVersion};
 
+// Vendored noir_rs proving glue (Apache-2.0, from
+// zkpassport/noir_rs). See `NOTICE.md` and `vendor/noir_rs/LICENSE`
+// for attribution. Per-file SPDX headers stay on each `.rs` so the
+// flattened layout doesn't lose the third-party signal. Public so
+// examples and integration tests can reach `barretenberg::api`
+// (low-memory configuration) and `circuit` (bytecode helpers)
+// without re-exporting every symbol at the crate root.
+//
+// `#[allow(clippy::all, unused)]` is applied to each vendored
+// module so this crate's own clippy linting stays strict while the
+// upstream code keeps its original style. Lint-level attributes
+// on `mod` declarations propagate into the module's descendants.
+#[allow(clippy::all, unused)]
+pub mod barretenberg;
+#[allow(clippy::all, unused)]
+pub mod circuit;
+#[allow(clippy::all, unused)]
+mod execute;
+#[allow(clippy::all, unused)]
+pub mod witness;
+
 // -----------------------------------------------------------------
 // Canonical-circuit JSON exports.
 //
@@ -62,16 +83,16 @@ pub fn flat_aggregation_json(tier_n: u32) -> Option<&'static str> {
 
 use std::fmt::{Debug, Formatter};
 
-use anyhow::Error;
-use noir_rs::acir::native_types::WitnessMap;
-use noir_rs::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
-use noir_rs::barretenberg::srs::setup_srs_from_bytecode;
-use noir_rs::barretenberg::verify::{
+use crate::barretenberg::prove::{prove_ultra_honk, prove_ultra_honk_keccak};
+use crate::barretenberg::srs::setup_srs_from_bytecode;
+use crate::barretenberg::verify::{
     get_ultra_honk_keccak_verification_key, get_ultra_honk_verification_key, verify_ultra_honk,
     verify_ultra_honk_keccak,
 };
-use noir_rs::witness::from_vec_to_witness_map;
-use noir_rs::{AcirField, FieldElement};
+use crate::witness::from_vec_to_witness_map;
+use acvm::acir::native_types::WitnessMap;
+use acvm::{AcirField, FieldElement};
+use anyhow::Error;
 
 use pso_protocol::witness::{FullProofWitness, OwnershipWitness};
 
@@ -579,7 +600,7 @@ pub fn derive_canonical_keccak_vk(bytecode: &str) -> anyhow::Result<Vec<u8>> {
     // many points in MemBn254CrsFactory`. 2^21 = 2,097,152 points
     // covers our largest circuit (N=64 acir ~5.5 MB) with headroom
     // and the SRS download is cached locally after the first run.
-    use noir_rs::barretenberg::srs::setup_srs;
+    use crate::barretenberg::srs::setup_srs;
     const SRS_POINTS: u32 = 1 << 21;
     let _ = setup_srs(SRS_POINTS, None).map_err(Error::msg)?;
     let vk =
@@ -639,9 +660,9 @@ mod tests {
         circuit_loader, split_proof, NoirCircuitConfig, NoirFullProofCircuit, NoirOwnershipCircuit,
         ZKMode, SPARSE_MERKLE_PATH_DEPTH,
     };
+    use acvm::{AcirField, FieldElement};
     use ark_bn254::Fr;
     use ark_ff::UniformRand;
-    use noir_rs::{AcirField, FieldElement};
     use rand::rngs::OsRng;
 
     use crate::{testing, ZKCircuit};

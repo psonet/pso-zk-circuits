@@ -1,0 +1,69 @@
+# Mise task definitions for pso-zk-circuits. Install mise once
+# (https://mise.jdx.dev), then `mise tasks ls` to see every task or
+# `mise run <task>` to invoke one. Tasks here are convenience
+# wrappers around the cargo + cargo-ndk invocations the CI workflow
+# runs; they're optional — every task documents the equivalent raw
+# command in its description so non-mise users can copy-paste.
+
+# ---------------------------------------------------------------
+# Setup: install Rust mobile targets + cargo-ndk. Idempotent — safe
+# to re-run. Does NOT install the Android NDK itself; see
+# `crates/pso-zk-circuit-noir/README.md` for that.
+# ---------------------------------------------------------------
+[tasks."mobile:setup"]
+description = "Install Rust mobile targets + cargo-ndk (idempotent)"
+run = """
+set -euo pipefail
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-linux-android x86_64-linux-android
+command -v cargo-ndk >/dev/null 2>&1 || cargo install cargo-ndk --locked
+"""
+
+# ---------------------------------------------------------------
+# iOS — same `cargo build --release` invocation CI runs (no extra
+# toolchain needed on macOS hosts beyond Xcode CLI tools).
+# ---------------------------------------------------------------
+[tasks."build:ios-arm64"]
+description = "iOS device (aarch64-apple-ios)"
+run = "cargo build --release -p pso-zk-circuit-noir --target aarch64-apple-ios"
+
+[tasks."build:ios-sim-arm64"]
+description = "iOS simulator on Apple Silicon (aarch64-apple-ios-sim)"
+run = "cargo build --release -p pso-zk-circuit-noir --target aarch64-apple-ios-sim"
+
+[tasks."build:ios"]
+description = "All iOS targets (device + Apple Silicon simulator)"
+depends = ["build:ios-arm64", "build:ios-sim-arm64"]
+
+# ---------------------------------------------------------------
+# Android — driven via cargo-ndk to pick up the API-level magic
+# prefix wrappers (`<triple>24-clang`). ANDROID_NDK_HOME is
+# auto-discovered from the brew cask install path; set it
+# explicitly if you installed NDK another way.
+# ---------------------------------------------------------------
+[tasks."build:android-arm64-v8a"]
+description = "Android arm64-v8a (aarch64-linux-android, API 24)"
+run = '''
+set -euo pipefail
+: "${ANDROID_NDK_HOME:=$(/bin/ls -d /opt/homebrew/Caskroom/android-ndk/*/AndroidNDK*.app/Contents/NDK "$HOME/Library/Android/sdk/ndk/"* "$HOME/Android/Sdk/ndk/"* 2>/dev/null | sort -V | tail -1)}"
+: "${ANDROID_NDK_HOME:?ANDROID_NDK_HOME not set and no NDK install autodetected — see crates/pso-zk-circuit-noir/README.md#mobile-builds}"
+export ANDROID_NDK_HOME ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+cargo ndk --target arm64-v8a --platform 24 --output-dir ./jniLibs build --release -p pso-zk-circuit-noir
+'''
+
+[tasks."build:android-x86_64"]
+description = "Android x86_64 (x86_64-linux-android, API 24)"
+run = '''
+set -euo pipefail
+: "${ANDROID_NDK_HOME:=$(/bin/ls -d /opt/homebrew/Caskroom/android-ndk/*/AndroidNDK*.app/Contents/NDK "$HOME/Library/Android/sdk/ndk/"* "$HOME/Android/Sdk/ndk/"* 2>/dev/null | sort -V | tail -1)}"
+: "${ANDROID_NDK_HOME:?ANDROID_NDK_HOME not set and no NDK install autodetected — see crates/pso-zk-circuit-noir/README.md#mobile-builds}"
+export ANDROID_NDK_HOME ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+cargo ndk --target x86_64 --platform 24 --output-dir ./jniLibs build --release -p pso-zk-circuit-noir
+'''
+
+[tasks."build:android"]
+description = "All Android ABIs (arm64-v8a + x86_64)"
+depends = ["build:android-arm64-v8a", "build:android-x86_64"]
+
+[tasks."build:mobile"]
+description = "All four mobile targets (iOS device + sim + Android arm64-v8a + x86_64)"
+depends = ["build:ios", "build:android"]

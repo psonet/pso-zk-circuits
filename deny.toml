@@ -4,11 +4,14 @@
 #
 # pso-zk-circuits consumes Noir's Rust FFI surface, so unlike the
 # other three pso-* libraries it pulls in git deps (the noir-lang
-# upstream + a psonet/noir_rs fork) on top of a heavy transitive
-# tree. That tree forces (a) two extra licenses, (b) a sizeable
-# [bans.skip] list, and (c) the workspace-path wildcard carve-out.
-# None of these are individually fixable in this repo; each one is
-# annotated with the upstream chain that drives it.
+# upstream) on top of a heavy transitive tree. The noir_rs proving
+# glue itself is vendored under
+# `crates/pso-zk-circuit-noir/src/vendor/noir_rs/`, so the only
+# remaining git source is `noir-lang/noir`. That tree forces
+# (a) two extra licenses, (b) a sizeable [bans.skip] list, and
+# (c) the workspace-path wildcard carve-out. None of these are
+# individually fixable in this repo; each one is annotated with
+# the upstream chain that drives it.
 #
 # When a violation surfaces, prefer the upstream fix:
 #   - multiple-versions  -> bump the dep pulling in the older
@@ -133,16 +136,14 @@ skip = [
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-git = [
-    # noir-lang upstream — acir / acvm / nargo / noirc_* are all
-    # consumed via this single git origin (pinned per-rev in Cargo.lock).
+    # noir-lang upstream — acvm / acvm_blackbox_solver /
+    # bn254_blackbox_solver / nargo / noirc_* are all consumed via
+    # this single git origin (pinned per-rev in Cargo.lock). These
+    # four crates moved from transitive (via noir_rs) to direct deps
+    # when the noir_rs proving glue was vendored into
+    # `pso-zk-circuit-noir/src/vendor/noir_rs/` — the git origin is
+    # unchanged.
     "https://github.com/noir-lang/noir",
-    # psonet fork of noir_rs (chore/align-barretenberg-version-with-noir
-    # branch). Consumed directly from pso-zk-circuit-noir's Cargo.toml
-    # — there is no [patch.crates-io] override. The fork bumps
-    # barretenberg-rs to the nightly the wallet SDK consumers
-    # (pso-chain, pso-integration) also build against; tracks an
-    # open PR back to upstream zkpassport/noir_rs.
-    "https://github.com/psonet/noir_rs",
     # pso-protocol is consumed as a git dep against main while the
     # two repos co-evolve; flips to a crates.io version once
     # pso-protocol is published. The ssh:// form in Cargo.toml

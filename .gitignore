@@ -5,6 +5,11 @@ target
 .serena
 .DS_Store
 
+# cargo-ndk output directory used by the Android mobile builds
+# (`mise run build:android*` + the matching CI step). Per-ABI
+# subdirs hold the libpso_zk_circuit_noir.so artifacts.
+jniLibs
+
 # AI Rules - Generated Files
 /.agents/commands/*-ai-rules.md
 /.agents/skills/ai-rules-generated-*

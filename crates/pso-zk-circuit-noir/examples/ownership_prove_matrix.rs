@@ -75,7 +75,7 @@ fn main() {
 
     // configure_memory writes both env vars and the C++ globals so
     // low_memory actually takes effect inside the prove path.
-    noir_rs::barretenberg::api::configure_memory(low_mem, None);
+    pso_zk_circuit_noir::barretenberg::api::configure_memory(low_mem, None);
 
     // Build a real witness for the ownership circuit.
     let key = testing::random_grumpkin_key().expect("random grumpkin key");

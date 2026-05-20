@@ -39,19 +39,19 @@ Methodology:
 
 | N | zk=off lm=off | zk=off lm=on | zk=on lm=off | zk=on lm=on |
 |---|---|---|---|---|
-| **N=1** | 1338 MiB / 695ms | 1361 MiB / 767ms | 1340 MiB / 697ms | 1363 MiB / 769ms |
-| **N=2** | 2733 MiB / 1.43s | 2783 MiB / 1.53s | 2738 MiB / 1.41s | 2783 MiB / 1.53s |
-| **N=4** | 5507 MiB / 2.89s | 5594 MiB / 3.16s | 5517 MiB / 2.81s | 5609 MiB / 3.05s |
-| **N=8** | 11072 MiB / 5.55s | 11231 MiB / 6.46s | 11048 MiB / 5.54s | 11251 MiB / 6.33s |
+| **N=1** | 92 MiB / 68ms | 91 MiB / 73ms | 91 MiB / 61ms | 92 MiB / 72ms |
+| **N=2** | 106 MiB / 76ms | 106 MiB / 91ms | 106 MiB / 88ms | 106 MiB / 88ms |
+| **N=4** | 135 MiB / 109ms | 136 MiB / 118ms | 135 MiB / 107ms | 135 MiB / 120ms |
+| **N=8** | 220 MiB / 161ms | 224 MiB / 168ms | 219 MiB / 152ms | 226 MiB / 162ms |
 
 ### Oracle = poseidon2 (would need a different on-chain verifier)
 
 | N | zk=off lm=off | zk=off lm=on | zk=on lm=off | zk=on lm=on |
 |---|---|---|---|---|
-| **N=1** | 1342 MiB / 700ms | 1361 MiB / 796ms | 1340 MiB / 695ms | 1363 MiB / 797ms |
-| **N=2** | 2739 MiB / 1.39s | 2783 MiB / 1.58s | 2734 MiB / 1.41s | 2766 MiB / 1.55s |
-| **N=4** | 5505 MiB / 2.80s | 5606 MiB / 3.09s | 5505 MiB / 2.85s | 5593 MiB / 3.06s |
-| **N=8** | 11071 MiB / 5.55s | 11255 MiB / 6.25s | 11071 MiB / 5.52s | 11253 MiB / 6.41s |
+| **N=1** | 91 MiB / 62ms | 91 MiB / 69ms | 92 MiB / 62ms | 92 MiB / 73ms |
+| **N=2** | 106 MiB / 83ms | 106 MiB / 89ms | 106 MiB / 78ms | 105 MiB / 95ms |
+| **N=4** | 135 MiB / 108ms | 137 MiB / 119ms | 135 MiB / 104ms | 136 MiB / 116ms |
+| **N=8** | 221 MiB / 153ms | 223 MiB / 173ms | 219 MiB / 148ms | 223 MiB / 176ms |
 
 ## Rolluphonk path (`verify_rolluphonk_proof`, ipa=true, poseidon2)
 
@@ -64,10 +64,10 @@ accumulate`.
 
 | N | zk=off lm=off | zk=off lm=on | zk=on lm=off | zk=on lm=on |
 |---|---|---|---|---|
-| **N=1** | 2794 MiB / 888ms | 2815 MiB / 958ms | 2794 MiB / 869ms | 2815 MiB / 947ms |
-| **N=2** | 3868 MiB / 1.92s | 3912 MiB / 2.13s | 3869 MiB / 1.94s | 3911 MiB / 2.07s |
-| **N=4** | FAIL (circuit_compute_vk: Backend error: Too many nested) | FAIL (circuit_compute_vk: Backend error: Too many nested) | FAIL (circuit_compute_vk: Backend error: Too many nested) | FAIL (circuit_compute_vk: Backend error: Too many nested) |
-| **N=8** | FAIL (circuit_compute_vk: Backend error: Too many nested) | FAIL (circuit_compute_vk: Backend error: Too many nested) | FAIL (circuit_compute_vk: Backend error: Too many nested) | FAIL (circuit_compute_vk: Backend error: Too many nested) |
+| **N=1** | — | — | — | — |
+| **N=2** | — | — | — | — |
+| **N=4** | — | — | — | — |
+| **N=8** | — | — | — | — |
 
 ## Ownership-circuit prove (shows real `low_memory` effect)
 
@@ -78,10 +78,10 @@ ownership circuit, which IS affected by low_memory mode.
 
 | oracle | low_mem | prove time | peak RSS |
 |---|---|---|---|
-| keccak | off | 0.20s | 130 MiB |
-| keccak | on | 0.22s | 151 MiB |
-| poseidon2 | off | 0.21s | 130 MiB |
-| poseidon2 | on | 0.24s | 153 MiB |
+| keccak | off | 0.15s | 109 MiB |
+| keccak | on | 0.18s | 110 MiB |
+| poseidon2 | off | 0.17s | 103 MiB |
+| poseidon2 | on | 0.20s | 112 MiB |
 
 ## Hierarchical / constant-memory analysis
 
@@ -99,16 +99,16 @@ Total wall-clock for aggregating `target_N` SUs hierarchically:
 | target_N | levels (log2) | total wall-clock (using zk=off lm=off step) |
 |---|---|---|
 
-Reference N=2 step: **2733 MiB / 1.43s** (peak RAM is the same regardless of `target_N`).
+Reference N=2 step: **106 MiB / 0.08s** (peak RAM is the same regardless of `target_N`).
 
 | target_N | levels | wall-clock |
 |---|---|---|
-| 2 | 1 | 1.43s |
-| 4 | 2 | 2.86s |
-| 8 | 3 | 4.29s |
-| 16 | 4 | 5.72s |
-| 32 | 5 | 7.15s |
-| 64 | 6 | 8.58s |
+| 2 | 1 | 0.08s |
+| 4 | 2 | 0.15s |
+| 8 | 3 | 0.23s |
+| 16 | 4 | 0.30s |
+| 32 | 5 | 0.38s |
+| 64 | 6 | 0.46s |
 
 ---
 
