@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.3 - 2026-05-20
+#### Bug Fixes
+- re-export acvm types from pso-zk-circuit-noir crate root - (8f2d61b) - Anton Velichko
+#### Style
+- cargo fmt the re-exports change - (ec141b0) - Anton Velichko
+
+- - -
+
 ## v0.2.2 - 2026-05-20
 #### Bug Fixes
 - drop pso-protocol git dep for crates.io; bump pso-poseidon to ^0.3; fix README cross-repo links + stale refs - (7f0b5b5) - Anton Velichko
