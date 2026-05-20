@@ -2,6 +2,21 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.2 - 2026-05-20
+#### Bug Fixes
+- drop pso-protocol git dep for crates.io; bump pso-poseidon to ^0.3; fix README cross-repo links + stale refs - (7f0b5b5) - Anton Velichko
+#### Documentation
+- (**mobile**) add mise tasks + READMEs for mobile builds - (e19bcbd) - Anton Velichko
+#### Refactoring
+- (**deps**) vendor noir_rs proving glue, drop psonet/noir_rs fork - (0e29258) - Anton Velichko
+- flatten vendored noir_rs modules into src/ root - (a7f6673) - Anton Velichko
+#### Miscellaneous Chores
+- (**lint**) rustfmt the vendored noir_rs files; silence clippy - (a37e9bf) - Anton Velichko
+- (**perf**) refresh cost-matrix harness for current circuit names - (7e1ab30) - Anton Velichko
+- ignore jniLibs/ (Android cargo-ndk output) - (cd75017) - Anton Velichko
+
+- - -
+
 ## v0.2.1 - 2026-05-19
 #### Bug Fixes
 - bump internal workspace.dependencies version constraints to ^0.2 - (c575132) - Anton Velichko
