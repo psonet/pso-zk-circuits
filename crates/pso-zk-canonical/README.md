@@ -33,7 +33,7 @@ After modifying a circuit under `crates/pso-zk-circuit-noir/`:
 cargo run --package xtask -- regenerate-canonical
 ```
 
-That command (TODO: implement in xtask):
+That command:
 1. Runs `nargo compile` on every entry in `xtask::CIRCUITS`
 2. Reads the compiled `<name>.json` artifact (base64 ACIR)
 3. Computes `circuit_hash = keccak256(base64_decode(acir))`
@@ -61,7 +61,7 @@ Catches:
 ```toml
 # pso-chain/Cargo.toml
 [dependencies]
-pso-zk-canonical = { git = "https://github.com/psonet/pso-zk-proof", tag = "pso-zk-canonical-v0.1.0" }
+pso-zk-canonical = "0.2"
 ```
 
 ```rust
@@ -86,6 +86,6 @@ pub const CANONICAL_CIRCUITS: &[CanonicalCircuit] = &[
 
 ## Design
 
-See `docs/issues/zk-circuit-table-and-rollout.md` in the `pso-chain`
-repo for the full spec (rolling-upgrade procedure, emergency response,
-precompile ABIs, etc.).
+See the internal `pso-chain` design docs for the full spec
+(rolling-upgrade procedure, emergency response, precompile ABIs,
+etc.).

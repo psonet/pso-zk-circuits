@@ -8,14 +8,14 @@
 zero-knowledge proof system. One of four sibling repos in the
 post-extraction layout:
 
-- [`pso-protocol`](../pso-protocol) — consensus-binding hash primitives
+- [`pso-protocol`](https://github.com/psonet/pso-protocol) — consensus-binding hash primitives
   and witness types (consumed here for type definitions).
-- **`pso-zk-circuits`** — Noir circuit sources + the `noir_rs`-based
+- **`pso-zk-circuits`** — Noir circuit sources + the vendored `noir_rs`-based
   prover/verifier wrapper + canonical descriptors.
-- [`pso-integration`](../pso-integration) — client-side integration:
+- `pso-integration` (internal) — client-side integration:
   UniFFI wallet bindings, SRA registrar, CLI, VDF FFI (planned), and
   L2-interaction code.
-- [`pso-chain`](../pso-chain) — PSO L2 chain (calls into this crate's
+- `pso-chain` (internal) — PSO L2 chain (calls into this crate's
   `derive_canonical_keccak_vk` from `xtask regenerate-canonical`).
 
 This repo absorbs the circuit half of the legacy `pso-zk-proof`
@@ -77,10 +77,14 @@ pso-zk-circuits/
 
 ## Dependencies
 
-- [`pso-protocol`](../pso-protocol) — path-pinned during the multi-repo
-  split. Flip to `version = "0.1"` (crates.io) once published.
-- [`noir_rs`](https://github.com/zkpassport/noir_rs) — Noir runtime +
-  Barretenberg FFI. Heavy native build (multi-minute first compile).
+- [`pso-protocol`](https://github.com/psonet/pso-protocol) — published
+  to crates.io as `pso-protocol = "0.2"`. Provides consensus-binding
+  hash primitives and witness types.
+- `noir_rs` proving glue — vendored directly into `crates/pso-zk-circuit-noir/src/`
+  (Apache-2.0; see `crates/pso-zk-circuit-noir/NOTICE.md`). Derived
+  from [zkpassport/noir_rs](https://github.com/zkpassport/noir_rs);
+  underlying `noir-lang/noir` crates are direct deps pinned to
+  `v1.0.0-beta.20`. Heavy native build (multi-minute first compile).
 - `k256` (regular dep) — needed by the `testing.rs` module that the
   crate's own tests/benches use to build witnesses from real keypairs.
 
@@ -110,11 +114,11 @@ mise run build:mobile    # all four targets
 mise tasks               # see every mobile task individually
 ```
 
-See [`crates/pso-zk-circuit-noir/README.md#mobile-builds`](crates/pso-zk-circuit-noir/README.md#mobile-builds)
-for the full prerequisites (NDK install, the API-level "magic prefix"
-toolchain wrappers cargo-ndk depends on), raw-`cargo` invocations for
-non-mise users, and how to verify the produced artifacts have the
-correct target metadata stamped.
+See [`crates/pso-zk-circuit-noir/README.md`](https://github.com/psonet/pso-zk-circuits/blob/main/crates/pso-zk-circuit-noir/README.md)
+for the full mobile-build prerequisites (NDK install, the API-level
+"magic prefix" toolchain wrappers cargo-ndk depends on), raw-`cargo`
+invocations for non-mise users, and how to verify the produced
+artifacts have the correct target metadata stamped.
 
 ## Regenerating canonical descriptors
 
@@ -129,8 +133,8 @@ via the same `noir_rs` FFI the prover uses, and emits the descriptors
 that `pso-zk-canonical` ships. The on-chain `zk_verify` precompile and
 every wallet prover will agree on VK bytes by construction.
 
-See `docs/issues/canonical-vk-toolchain-drift.md` in `pso-chain` for
-the background on why we don't shell out to `bb write_vk` anymore.
+See the internal `pso-chain` design docs for the background on why
+we don't shell out to `bb write_vk` anymore.
 
 ## License
 
