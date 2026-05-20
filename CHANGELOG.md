@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.4 - 2026-05-20
+#### Bug Fixes
+- (**ci**) attach pso-zk-canonical .crate + SHA256SUMS to GH Releases - (73c22da) - Anton Velichko
+
+- - -
+
 ## v0.2.3 - 2026-05-20
 #### Bug Fixes
 - re-export acvm types from pso-zk-circuit-noir crate root - (8f2d61b) - Anton Velichko
