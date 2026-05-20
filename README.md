@@ -96,6 +96,26 @@ Full round-trip tests (`pso-zk-circuit-noir`'s integration tests) take
 tens of seconds per tier under barretenberg. The default exercises only
 N=1, N=2; enable the rest with `--features aggregation-full-tiers`.
 
+### Mobile targets
+
+`pso-zk-circuit-noir` compiles to per-target `libpso_zk_circuit_noir.{a,so}`
+slices that the Wallet SDK / `pso-integration` UniFFI bindings consume.
+Four targets: iOS device + Apple Silicon simulator, Android arm64-v8a +
+x86_64. The repo's `mise.toml` ships convenience tasks that mirror the
+exact `cargo build` / `cargo ndk` invocations CI runs:
+
+```bash
+mise run mobile:setup    # install rust targets + cargo-ndk
+mise run build:mobile    # all four targets
+mise tasks               # see every mobile task individually
+```
+
+See [`crates/pso-zk-circuit-noir/README.md#mobile-builds`](crates/pso-zk-circuit-noir/README.md#mobile-builds)
+for the full prerequisites (NDK install, the API-level "magic prefix"
+toolchain wrappers cargo-ndk depends on), raw-`cargo` invocations for
+non-mise users, and how to verify the produced artifacts have the
+correct target metadata stamped.
+
 ## Regenerating canonical descriptors
 
 After any change to a Noir circuit source:
