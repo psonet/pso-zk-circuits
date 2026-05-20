@@ -30,6 +30,14 @@ mod execute;
 #[allow(clippy::all, unused)]
 pub mod witness;
 
+// Re-export the acvm types most downstream consumers (`pso-integration`,
+// `pso-chain`'s optional `noir-verify` feature) need when building
+// witnesses, so they don't have to take `acvm` as a separate direct
+// dep. Matches what upstream `noir_rs/src/lib.rs` does with `pub use
+// acvm::*`, just scoped to the symbols PSO consumers actually touch.
+pub use acvm::{AcirField, FieldElement};
+pub use acvm::acir::native_types::{Witness, WitnessMap, WitnessStack};
+
 // -----------------------------------------------------------------
 // Canonical-circuit JSON exports.
 //
@@ -90,8 +98,7 @@ use crate::barretenberg::verify::{
     verify_ultra_honk_keccak,
 };
 use crate::witness::from_vec_to_witness_map;
-use acvm::acir::native_types::WitnessMap;
-use acvm::{AcirField, FieldElement};
+// AcirField, FieldElement, WitnessMap are re-exported at the crate root above.
 use anyhow::Error;
 
 use pso_protocol::witness::{FullProofWitness, OwnershipWitness};
