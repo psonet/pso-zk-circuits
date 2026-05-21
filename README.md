@@ -136,6 +136,27 @@ every wallet prover will agree on VK bytes by construction.
 See the internal `pso-chain` design docs for the background on why
 we don't shell out to `bb write_vk` anymore.
 
+## Verifying releases
+
+Releases tagged from `v0.2.5` onward ship sigstore cosign signatures + SLSA build-provenance attestations for every artifact (the `.crate`, every mobile slice that built successfully, and `SHA256SUMS`). See [SECURITY.md](SECURITY.md) for the threat model and the copy-pasteable verify recipe.
+
+The mobile build matrix is best-effort (`continue-on-error: true`) — signing tolerates missing slices, so whichever subset built is what gets signed. The `verify-release` CI job hard-fails if any present signature is invalid, but allows missing slices.
+
+Quick check (crate):
+
+```sh
+TAG=v0.2.5
+ARTIFACT=pso-zk-canonical-${TAG#v}.crate
+gh release download "$TAG" --repo psonet/pso-zk-circuits \
+  --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"
+cosign verify-blob \
+  --certificate "$ARTIFACT.pem" --signature "$ARTIFACT.sig" \
+  --certificate-identity-regexp \
+    '^https://github\.com/psonet/pso-zk-circuits/\.github/workflows/ci\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+)$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  "$ARTIFACT"
+```
+
 ## License
 
 [MIT](LICENSE) — same as `pso-protocol` / `pso-vdf` / `pso-poseidon`.
