@@ -577,6 +577,13 @@ jobs:
       always() &&
       (needs.tag.result == 'success' && needs.tag.outputs.tag != '' ||
        needs.resolve.outputs.release_tag != '')
+    # id-token + attestations widen this job's scope so cosign keyless +
+    # actions/attest-build-provenance can mint an OIDC token and write to
+    # the GitHub attestation store. Workflow-level perms stay narrower.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -597,6 +604,7 @@ jobs:
           path: artifacts/crate/
 
       - name: Stage release artifacts
+        id: stage
         run: |
           set -euo pipefail
           mkdir -p release/
@@ -626,9 +634,49 @@ jobs:
             shasum -a 256 * > SHA256SUMS
             echo "---"
             cat SHA256SUMS
+            echo "has_artifacts=true" >> "$GITHUB_OUTPUT"
           else
             echo "(no artifacts assembled)"
+            echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Install cosign
+        if: steps.stage.outputs.has_artifacts == 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # pin-target: v4
+
+      # Matrix-aware signing: signs whichever subset of mobile slices +
+      # the .crate + SHA256SUMS made it into release/. continue-on-error
+      # on the cross-build matrix legs means we sign what we have, not
+      # what we expected to have. Skips any pre-existing .sig/.pem.
+      - name: Sign release artifacts (cosign keyless)
+        if: steps.stage.outputs.has_artifacts == 'true'
+        run: |
+          set -euo pipefail
+          cd release
+          for f in *; do
+            [ -f "$f" ] || continue
+            case "$f" in *.sig|*.pem) continue ;; esac
+            echo "Signing $f"
+            cosign sign-blob --yes \
+              --output-signature "${f}.sig" \
+              --output-certificate "${f}.pem" \
+              "$f"
+          done
+          ls -la
+
+      # SLSA build provenance for every artifact in release/ (except
+      # sigs/certs). Glob expansion picks up whichever mobile slices
+      # built successfully — missing slices contribute zero subjects.
+      - name: Generate SLSA build provenance
+        if: steps.stage.outputs.has_artifacts == 'true'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # pin-target: v4
+        with:
+          subject-path: |
+            release/*.crate
+            release/*.a
+            release/*.so
+            release/*.zip
+            release/SHA256SUMS
 
       - name: Compose release body
         env:
@@ -670,6 +718,8 @@ jobs:
             echo "### Verification"
             echo
             echo "- \`SHA256SUMS\` — SHA-256 of every other file attached to this release."
+            echo "- \`*.sig\` + \`*.pem\` — sigstore cosign keyless signature + Fulcio cert per artifact."
+            echo "- See [SECURITY.md](https://github.com/psonet/pso-zk-circuits/blob/main/SECURITY.md) for the verify recipe."
             echo
             echo "## CI"
             echo
@@ -685,3 +735,81 @@ jobs:
           files: |
             release/*
           fail_on_unmatched_files: false
+
+  # ----------------------------------------------------------------
+  # verify-release: post-publish smoke test. Re-downloads every asset
+  # of the release we just cut and runs `cosign verify-blob` against
+  # each one. Hard-fails the workflow on any bad signature. Tolerates
+  # the matrix-aware artifact set — only verifies pairs that actually
+  # exist on the release.
+  # ----------------------------------------------------------------
+  verify-release:
+    name: Verify signed release
+    runs-on: ubuntu-latest
+    needs: [resolve, tag, github-release, publish-crates-io]
+    if: |
+      always() &&
+      needs.github-release.result == 'success' &&
+      (needs.tag.result == 'success' && needs.tag.outputs.tag != '' ||
+       needs.resolve.outputs.release_tag != '')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # pin-target: v4
+
+      - name: Download release assets
+        env:
+          TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p verify
+          gh release download "$TAG" --dir verify --repo "${{ github.repository }}"
+          ls -la verify/
+
+      - name: Verify cosign signatures
+        env:
+          TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          cd verify
+          IDENTITY_RE='^https://github\.com/psonet/pso-zk-circuits/\.github/workflows/ci\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+          OIDC_ISSUER='https://token.actions.githubusercontent.com'
+          failed=0
+          verified=0
+          shopt -s nullglob
+          for f in *; do
+            [ -f "$f" ] || continue
+            case "$f" in *.sig|*.pem) continue ;; esac
+            if [ ! -f "${f}.sig" ] || [ ! -f "${f}.pem" ]; then
+              echo "::error::missing ${f}.sig or ${f}.pem alongside ${f}"
+              failed=1
+              continue
+            fi
+            echo "Verifying $f"
+            if cosign verify-blob \
+                --certificate "${f}.pem" \
+                --signature "${f}.sig" \
+                --certificate-identity-regexp "$IDENTITY_RE" \
+                --certificate-oidc-issuer "$OIDC_ISSUER" \
+                "$f"; then
+              echo "  OK $f"
+              verified=$((verified + 1))
+            else
+              echo "::error::cosign verify-blob FAILED for $f"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::one or more release artifacts failed signature verification"
+            exit 1
+          fi
+          if [ "$verified" -eq 0 ]; then
+            echo "::error::no signed artifacts found on the release"
+            exit 1
+          fi
+          echo "Verified $verified artifact(s)."
