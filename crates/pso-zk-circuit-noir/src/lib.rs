@@ -356,12 +356,12 @@ impl NoirFullProofCircuit {
 
         let mut witness_vec = Vec::new();
 
-        // pk.x as Field (Grumpkin coord, LE-decoded from 32 bytes)
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        // pk.x as Field (Grumpkin coord, BE-decoded from 32 bytes)
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.private_inputs.ownership.public_key_x,
         ));
         // pk.y as Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.private_inputs.ownership.public_key_y,
         ));
 
@@ -375,7 +375,7 @@ impl NoirFullProofCircuit {
         witness_vec.extend(signature);
 
         // nonce as Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.private_inputs.ownership.nonce,
         ));
 
@@ -388,7 +388,7 @@ impl NoirFullProofCircuit {
                 .private_inputs
                 .merkle_path
                 .iter()
-                .map(|item| FieldElement::from_le_bytes_reduce(&item.node_hash))
+                .map(|item| FieldElement::from_be_bytes_reduce(&item.node_hash))
                 .collect();
             merkle_path_siblings.extend(vec![FieldElement::zero(); diff]);
             witness_vec.extend(merkle_path_siblings);
@@ -409,17 +409,17 @@ impl NoirFullProofCircuit {
         }
 
         // expected_ownership as pub Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.ownership.ownership,
         ));
 
         // nft_hash as pub Field — lives inside ownership now.
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.ownership.nft_hash,
         ));
 
         // expected_merkle_root as pub Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.merkle_root,
         ));
 
@@ -536,12 +536,12 @@ impl NoirOwnershipCircuit {
     ) -> Result<WitnessMap<FieldElement>, Error> {
         let mut witness_vec = Vec::new();
 
-        // pk.x as one Field (Grumpkin coord, LE-decoded from 32 bytes)
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        // pk.x as one Field (Grumpkin coord, BE-decoded from 32 bytes)
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.private_inputs.public_key_x,
         ));
         // pk.y as one Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.private_inputs.public_key_y,
         ));
         // signature as [u8; 64] — Schnorr/Grumpkin (s || e). The
@@ -550,16 +550,16 @@ impl NoirOwnershipCircuit {
             witness_vec.push(FieldElement::from(byte as u32));
         }
         // nonce as Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.private_inputs.nonce,
         ));
 
         // owner as pub Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.ownership,
         ));
         // nft_hash as pub Field
-        witness_vec.push(FieldElement::from_le_bytes_reduce(
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.nft_hash,
         ));
 
@@ -709,7 +709,7 @@ mod tests {
         let mut merkle_path = Vec::with_capacity(merkle_depth);
         for _ in 0..merkle_depth {
             let random_hash = Fr::rand(&mut OsRng);
-            let array = testing::fr_to_le32(&random_hash);
+            let array = testing::fr_to_be32(&random_hash);
 
             merkle_path.push(MerklePathElement {
                 node_hash: array,
@@ -733,13 +733,13 @@ mod tests {
     /// Dumps witness data as a complete Noir `#[test]` function that calls `main()`.
     /// The output can be copy-pasted into `main.nr` to debug circuit failures via `nargo test`.
     fn dump_witness_for_noir_tests(witness: &FullProofWitness) {
-        let nonce = FieldElement::from_le_bytes_reduce(&witness.private_inputs.ownership.nonce);
+        let nonce = FieldElement::from_be_bytes_reduce(&witness.private_inputs.ownership.nonce);
         let expected_ownership =
-            FieldElement::from_le_bytes_reduce(&witness.public_inputs.ownership.ownership);
+            FieldElement::from_be_bytes_reduce(&witness.public_inputs.ownership.ownership);
         let nft_hash =
-            FieldElement::from_le_bytes_reduce(&witness.public_inputs.ownership.nft_hash);
+            FieldElement::from_be_bytes_reduce(&witness.public_inputs.ownership.nft_hash);
         let expected_merkle_root =
-            FieldElement::from_le_bytes_reduce(&witness.public_inputs.merkle_root);
+            FieldElement::from_be_bytes_reduce(&witness.public_inputs.merkle_root);
 
         fn fmt_bytes(bytes: &[u8]) -> String {
             let items: Vec<String> = bytes.iter().map(|b| format!("{:03}", b)).collect();
@@ -753,7 +753,7 @@ mod tests {
             .map(|item| {
                 format!(
                     "0x{}",
-                    FieldElement::from_le_bytes_reduce(&item.node_hash).to_hex()
+                    FieldElement::from_be_bytes_reduce(&item.node_hash).to_hex()
                 )
             })
             .collect();
