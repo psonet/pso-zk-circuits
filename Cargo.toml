@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.2.5"
+version = "0.3.0"
 edition = "2021"
 
 [workspace]
@@ -15,13 +15,15 @@ resolver = "2"
 # by cargo-deny's wildcard check for publishable crates — cargo
 # prefers the path dep for local dev and the version takes effect
 # when these crates are consumed off crates.io.
-pso-zk-circuit-noir = { version = "0.2", path = "crates/pso-zk-circuit-noir" }
-pso-zk-canonical    = { version = "0.2", path = "crates/pso-zk-canonical" }
+pso-zk-circuit-noir = { version = "0.3", path = "crates/pso-zk-circuit-noir" }
+pso-zk-canonical    = { version = "0.3", path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Consumed from crates.io
 # directly now that `pso-protocol` is published; the cargo-deny
-# wildcard concern is moot for registry deps.
-pso-protocol = "0.2"
+# wildcard concern is moot for registry deps. Bumped to ^0.3 in
+# v0.3.0 to pick up the BE wire-format unification (LE→BE flip in
+# `pso-protocol::merkle::compute_merkle_root` etc.).
+pso-protocol = "0.3"
 
 # External
 pso-poseidon = "0.3"
