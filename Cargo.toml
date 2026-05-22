@@ -61,13 +61,6 @@ generic-array = "0.14"
 clap = { version = "4", features = ["derive"] }
 hex = "0.4"
 
-# Temporary override to consume pso-protocol 0.3.0 before it lands on
-# crates.io. Remove this block once `cargo publish` for pso-protocol
-# v0.3.0 completes — the `pso-protocol = "0.3"` dep above will then
-# resolve from the registry naturally.
-[patch.crates-io]
-pso-protocol = { path = "../pso-protocol" }
-
 # Dev / testing mode. We make opt-level = 3 to improve proving times
 # (otherwise it is really slow).
 [profile.dev]
