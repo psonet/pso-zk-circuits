@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.0 - 2026-05-22
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>unify Fr wire format on big-endian (BREAKING — v0.3.0) - (6ffb64c) - Anton Velichko
+#### Bug Fixes
+- (**deps**) drop [patch.crates-io] for pso-protocol — registry has 0.3.0 - (bab5c61) - Anton Velichko
+#### Refactoring
+- unify Fr wire format on big-endian (BREAKING — 0.3.0) - (6c95e18) - Anton Velichko
+
+- - -
+
 ## v0.2.5 - 2026-05-21
 #### Bug Fixes
 - (**release**) broaden verify-release identity regex to accept refs/heads/main - (b8127d3) - Anton Velichko
