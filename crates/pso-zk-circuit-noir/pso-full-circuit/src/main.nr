@@ -18,8 +18,11 @@ pub fn main(
     pk: EmbeddedCurvePoint,
     signature: [u8; 64],
     nonce: Field,
-    merkle_path_siblings: [Field; 8],
-    merkle_path_indices: [u8; 8],
+    // Depth-32 Merkle inclusion path for the perpetual TD commitment
+    // tree (single Incremental Merkle Tree, Poseidon2/BN254). Raised
+    // from depth 8 -> 32 so one perpetual IMT can hold the full TD set.
+    merkle_path_siblings: [Field; 32],
+    merkle_path_indices: [u8; 32],
     // Public -- same `(owner, nft_hash)` prefix as the standalone
     // ownership circuit, plus the Merkle root the inclusion check
     // resolves to.
@@ -50,13 +53,21 @@ pub fn main(
 
 #[test]
 fn test_merkle_inclusion() {
+    // Depth-32 inclusion path. Siblings 1..=32, alternating indices.
     let leaf: Field = 0;
-    let siblings: [Field; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
-    let indices: [u8; 8] = [0, 1, 0, 1, 0, 1, 0, 1];
+    let siblings: [Field; 32] = [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32,
+    ];
+    let indices: [u8; 32] = [
+        0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+        0, 1,
+    ];
 
+    // Expected depth-32 root, regenerated for the perpetual TD IMT.
     let expected_merkle_tree_root = [
-        104, 057, 009, 238, 038, 094, 110, 105, 035, 161, 094, 225, 051, 038, 244, 246, 031, 175,
-        154, 035, 222, 125, 171, 102, 037, 145, 234, 128, 202, 151, 032, 009,
+        043, 108, 118, 231, 172, 210, 186, 020, 105, 042, 248, 048, 006, 224, 235, 252, 135, 249,
+        040, 176, 095, 208, 238, 223, 227, 144, 061, 058, 149, 122, 059, 022,
     ];
 
     let root = inclusion::compute_merkle_root(leaf, siblings, indices);

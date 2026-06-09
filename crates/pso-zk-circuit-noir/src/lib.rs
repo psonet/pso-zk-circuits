@@ -340,14 +340,26 @@ impl ZKCircuit<NoirCircuitConfig, NoirProof> for NoirFullProofCircuit {
 // so network can handle about 1M tributes per second
 pub use pso_protocol::merkle::SPARSE_MERKLE_PATH_DEPTH;
 
+/// Merkle-inclusion depth of the FULL_PROOF circuit.
+///
+/// The on-chain TD commitment tree is a single perpetual Incremental
+/// Merkle Tree at depth 32 (Poseidon2/BN254). The FULL_PROOF circuit's
+/// `merkle_path_siblings` / `merkle_path_indices` arrays are sized to
+/// this depth, so the Rust witness builder must pad to exactly the same
+/// number of levels (decoupled from `pso-protocol`'s legacy
+/// `SPARSE_MERKLE_PATH_DEPTH`, which still governs the short-tree SMT
+/// helpers). `compute_merkle_root` hashes every level, so any mismatch
+/// between this constant and the Noir array width breaks proving.
+pub const FULL_PROOF_MERKLE_DEPTH: usize = 32;
+
 impl NoirFullProofCircuit {
     fn create_witness_map(witness: &FullProofWitness) -> Result<WitnessMap<FieldElement>, Error> {
         // Circuit main() signature (must match exactly):
         //     pk: EmbeddedCurvePoint,
         //     signature: [u8; 64],
         //     nonce: Field,
-        //     merkle_path_siblings: [Field; 8],
-        //     merkle_path_indices: [u8; 8],
+        //     merkle_path_siblings: [Field; 32],
+        //     merkle_path_indices: [u8; 32],
         //     owner: pub Field,
         //     nft_hash: pub Field,
         //     expected_merkle_root: pub Field,
@@ -379,9 +391,9 @@ impl NoirFullProofCircuit {
             &witness.private_inputs.ownership.nonce,
         ));
 
-        // merkle_path_siblings as [Field; 8] and merkle_path_indices as [u8; 8]
+        // merkle_path_siblings as [Field; 32] and merkle_path_indices as [u8; 32]
         {
-            let diff = SPARSE_MERKLE_PATH_DEPTH - witness.private_inputs.merkle_path.len();
+            let diff = FULL_PROOF_MERKLE_DEPTH - witness.private_inputs.merkle_path.len();
 
             // Siblings as Field values
             let mut merkle_path_siblings: Vec<FieldElement> = witness
@@ -665,7 +677,7 @@ pub mod circuit_loader {
 mod tests {
     use crate::{
         circuit_loader, split_proof, NoirCircuitConfig, NoirFullProofCircuit, NoirOwnershipCircuit,
-        ZKMode, SPARSE_MERKLE_PATH_DEPTH,
+        ZKMode, FULL_PROOF_MERKLE_DEPTH,
     };
     use acvm::{AcirField, FieldElement};
     use ark_bn254::Fr;
@@ -757,7 +769,7 @@ mod tests {
                 )
             })
             .collect();
-        while sibling_strs.len() < SPARSE_MERKLE_PATH_DEPTH {
+        while sibling_strs.len() < FULL_PROOF_MERKLE_DEPTH {
             sibling_strs.push("0".to_string());
         }
 
@@ -771,7 +783,7 @@ mod tests {
                 MerklePathElementIndex::Skip => "0".to_string(),
             })
             .collect();
-        while index_strs.len() < SPARSE_MERKLE_PATH_DEPTH {
+        while index_strs.len() < FULL_PROOF_MERKLE_DEPTH {
             index_strs.push("0".to_string());
         }
 
@@ -792,11 +804,11 @@ mod tests {
             fmt_bytes(&witness.public_inputs.ownership.signature)
         );
         println!(
-            "    let merkle_path_siblings: [Field; 8] = [{}];",
+            "    let merkle_path_siblings: [Field; 32] = [{}];",
             sibling_strs.join(", ")
         );
         println!(
-            "    let merkle_path_indices: [u8; 8] = [{}];",
+            "    let merkle_path_indices: [u8; 32] = [{}];",
             index_strs.join(", ")
         );
         println!(
