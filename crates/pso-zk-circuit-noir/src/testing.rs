@@ -94,10 +94,14 @@ pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
         .map_err(|e| anyhow::anyhow!("poseidon2(nft_hash, nonce): {e}"))?;
     let signature = schnorr_sign_be(&key.sk_bytes, &prehash_fr)?;
 
+    // Depth must match the FULL_PROOF circuit's path width (32, the
+    // perpetual TD IMT depth), NOT pso-protocol's legacy
+    // SPARSE_MERKLE_PATH_DEPTH. compute_merkle_root zero-pads beyond
+    // merkle_path.len() the same way the Noir circuit does.
     let merkle_root_fr = pso_protocol::merkle::compute_merkle_root(
         &nft_hash_fr,
         merkle_path,
-        pso_protocol::merkle::SPARSE_MERKLE_PATH_DEPTH,
+        crate::FULL_PROOF_MERKLE_DEPTH,
     )
     .map_err(|e| anyhow::anyhow!("merkle root: {e}"))?;
     let merkle_root = fr_to_be32(&merkle_root_fr);

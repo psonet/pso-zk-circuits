@@ -77,12 +77,12 @@ pub struct CircuitDescriptor {
 
 pub const FULL_PROOF: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "d3d2f1289b6c17a1172a263024f9e115072fd355a80ea1c0e84040407c49b125"
+        "a09844eb07939afe96f88c23cc2748b8c206d8eed0f9bbe69aabeb49ef7f3798"
     ),
     label: "pso.full_proof",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/full_proof.vk"),
-    vk_hash: hex_literal::hex!("fd393d8a0d138c990a76e82d6dca14304ee4a7854e7d34c19e2b04e64d023ad7"),
+    vk_hash: hex_literal::hex!("d0cc00eccd9f5861da67b90ac017a64485566936c73091a37712e55ec4881549"),
 };
 
 pub const OWNERSHIP: CircuitDescriptor = CircuitDescriptor {

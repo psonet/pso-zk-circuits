@@ -15,8 +15,8 @@ resolver = "2"
 # by cargo-deny's wildcard check for publishable crates — cargo
 # prefers the path dep for local dev and the version takes effect
 # when these crates are consumed off crates.io.
-pso-zk-circuit-noir = { version = "0.3", path = "crates/pso-zk-circuit-noir" }
-pso-zk-canonical    = { version = "0.3", path = "crates/pso-zk-canonical" }
+pso-zk-circuit-noir = { version = "0.4", path = "crates/pso-zk-circuit-noir" }
+pso-zk-canonical    = { version = "0.4", path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Consumed from crates.io
 # directly now that `pso-protocol` is published; the cargo-deny
