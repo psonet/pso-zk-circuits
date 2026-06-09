@@ -2339,9 +2339,9 @@ dependencies = [
 
 [[package]]
 name = "pso-protocol"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "391422efcf4c9302a86a96e5b562ca18695ce712405566560010a14f1cbab4c3"
+checksum = "f769d59a4e5b504f35afdedf12a8d71a62b662cd9e90db2fb66eae1cc7f031d7"
 dependencies = [
  "ark-bn254",
  "ark-ff",

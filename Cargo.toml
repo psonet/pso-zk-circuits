@@ -20,10 +20,12 @@ pso-zk-canonical    = { version = "0.3", path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Consumed from crates.io
 # directly now that `pso-protocol` is published; the cargo-deny
-# wildcard concern is moot for registry deps. Bumped to ^0.3 in
-# v0.3.0 to pick up the BE wire-format unification (LE→BE flip in
-# `pso-protocol::merkle::compute_merkle_root` etc.).
-pso-protocol = "0.3"
+# wildcard concern is moot for registry deps. Bumped to ^0.5 to pick
+# up the consent-address SU hash (attester/referrer bound into the SU
+# preimage) and the `imt` commitment-window tree module. The witness /
+# merkle / ownership APIs this crate consumes are unchanged, so the
+# circuits and their VKs are unaffected — only a recompile.
+pso-protocol = "0.5"
 
 # External
 pso-poseidon = "0.3"
