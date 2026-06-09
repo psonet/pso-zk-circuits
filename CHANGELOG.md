@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.1 - 2026-06-09
+#### Bug Fixes
+- (**deps**) make internal path-deps path-only (stop stale version reqs) - (633527e) - Anton Velichko
+
+- - -
+
 ## v0.5.0 - 2026-06-09
 #### Features
 - (**full-circuit**) raise FULL_PROOF Merkle inclusion depth 8 -> 32 for perpetual TD IMT - (b19670c) - Anton Velichko
