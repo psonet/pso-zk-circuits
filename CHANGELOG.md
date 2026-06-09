@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.0 - 2026-06-09
+#### Features
+- (**full-circuit**) raise FULL_PROOF Merkle inclusion depth 8 -> 32 for perpetual TD IMT - (b19670c) - Anton Velichko
+#### Bug Fixes
+- (**deps**) bump internal path-dep version reqs 0.3 -> 0.4 - (83c6972) - Anton Velichko
+#### Style
+- cargo fmt --all - (084de23) - Anton Velichko
+
+- - -
+
 ## v0.4.0 - 2026-06-09
 #### Features
 - (**deps**) bump pso-protocol 0.3 -> 0.5 - (6a9c105) - Anton Velichko
