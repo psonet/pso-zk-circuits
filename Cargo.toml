@@ -11,12 +11,16 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-# Internal crates. The `version` field alongside `path` is required
-# by cargo-deny's wildcard check for publishable crates — cargo
-# prefers the path dep for local dev and the version takes effect
-# when these crates are consumed off crates.io.
-pso-zk-circuit-noir = { version = "0.4", path = "crates/pso-zk-circuit-noir" }
-pso-zk-canonical    = { version = "0.4", path = "crates/pso-zk-canonical" }
+# Internal crates — PATH-ONLY (no version req). A pinned `version` here
+# goes stale on every release: the `chore(version)` bump raises
+# `[workspace.package].version` but does NOT update these requirements,
+# so `^0.N` stops matching the bumped path crate and `cargo metadata`
+# /publish fail. Path-only never goes stale; cargo-deny permits it via
+# `allow-wildcard-paths = true` in deny.toml. Safe to publish: noir is
+# never published, and canonical (the leaf) does not depend on these
+# entries when it publishes — they only gate intra-workspace resolution.
+pso-zk-circuit-noir = { path = "crates/pso-zk-circuit-noir" }
+pso-zk-canonical    = { path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Consumed from crates.io
 # directly now that `pso-protocol` is published; the cargo-deny
