@@ -276,15 +276,20 @@ fn main() {
 
     // -- Witness generation --
     let (nft, key, nonce, merkle_path) = make_bench_nft();
+    let binding_hash =
+        pso_protocol::binding::compute_binding_hash(&[7u8; 20], &[9u8; 32], 1).unwrap();
 
     let r = bench("ownership witness generation", 1_000, || {
-        std::hint::black_box(testing::build_ownership_witness(&nft, &key, nonce).unwrap());
+        std::hint::black_box(
+            testing::build_ownership_witness(&nft, &key, nonce, binding_hash).unwrap(),
+        );
     });
     print_result(&r);
 
     let r = bench("full proof witness generation", 1_000, || {
         std::hint::black_box(
-            testing::build_full_proof_witness(&nft, &key, nonce, &merkle_path).unwrap(),
+            testing::build_full_proof_witness(&nft, &key, nonce, binding_hash, &merkle_path)
+                .unwrap(),
         );
     });
     print_result(&r);
@@ -292,7 +297,8 @@ fn main() {
     // -- Proof operations --
     let (nft, key, nonce, _) = make_bench_nft();
 
-    let ownership_witness = testing::build_ownership_witness(&nft, &key, nonce).unwrap();
+    let ownership_witness =
+        testing::build_ownership_witness(&nft, &key, nonce, binding_hash).unwrap();
 
     let ownership_bytecode = circuit_loader::load_circuit("data/ownership_proof.json").unwrap();
     let ownership_circuit = NoirOwnershipCircuit::setup(NoirCircuitConfig {
@@ -321,7 +327,8 @@ fn main() {
     // Full proof circuit
     let (nft2, key2, nonce2, merkle_path2) = make_bench_nft();
     let full_witness =
-        testing::build_full_proof_witness(&nft2, &key2, nonce2, &merkle_path2).unwrap();
+        testing::build_full_proof_witness(&nft2, &key2, nonce2, binding_hash, &merkle_path2)
+            .unwrap();
 
     let full_bytecode = circuit_loader::load_circuit("data/full_proof.json").unwrap();
     let full_circuit = NoirFullProofCircuit::setup(NoirCircuitConfig {

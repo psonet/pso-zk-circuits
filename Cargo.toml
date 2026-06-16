@@ -24,12 +24,13 @@ pso-zk-canonical    = { path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Consumed from crates.io
 # directly now that `pso-protocol` is published; the cargo-deny
-# wildcard concern is moot for registry deps. Bumped to ^0.5 to pick
-# up the consent-address SU hash (attester/referrer bound into the SU
-# preimage) and the `imt` commitment-window tree module. The witness /
-# merkle / ownership APIs this crate consumes are unchanged, so the
-# circuits and their VKs are unaffected — only a recompile.
-pso-protocol = "0.5"
+# wildcard concern is moot for registry deps. Bumped to ^0.6 for the
+# `binding_hash` public input on `OwnershipPublicInputs`: the ownership
+# / aggregation / full-proof circuits now fold it into the per-SU
+# Schnorr pre-hash `Poseidon3(nft_hash, nonce, binding_hash)` and expose
+# it as the trailing public input — so the circuits AND their VKs change
+# (regenerate `pso-zk-canonical`), not just a recompile.
+pso-protocol = "0.6"
 
 # External
 pso-poseidon = "0.3"

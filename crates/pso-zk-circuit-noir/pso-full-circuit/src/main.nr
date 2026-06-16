@@ -5,9 +5,10 @@
 // implementation across the codebase --
 // `pso_circuit_core::ownership::verify_ownership_per_su` -- so the
 // Grumpkin Schnorr semantics, the Poseidon3 owner derivation, and the
-// `Poseidon2(nft_hash, nonce)` signature payload are identical whether
-// the proof is standalone (`pso-ownership-circuit`), flat-aggregated
-// (`pso-flat-aggregation-circuit-n*`), or composed with inclusion here.
+// `Poseidon3(nft_hash, nonce, binding_hash)` signature payload are
+// identical whether the proof is standalone (`pso-ownership-circuit`),
+// flat-aggregated (`pso-flat-aggregation-circuit-n*`), or composed with
+// inclusion here.
 
 use pso_circuit_core::inclusion;
 use pso_circuit_core::ownership;
@@ -23,17 +24,18 @@ pub fn main(
     // from depth 8 -> 32 so one perpetual IMT can hold the full TD set.
     merkle_path_siblings: [Field; 32],
     merkle_path_indices: [u8; 32],
-    // Public -- same `(owner, nft_hash)` prefix as the standalone
-    // ownership circuit, plus the Merkle root the inclusion check
-    // resolves to.
+    // Public -- same `(owner, nft_hash, binding_hash)` prefix as the
+    // standalone ownership circuit, plus the Merkle root the inclusion
+    // check resolves to.
     owner: pub Field,
     nft_hash: pub Field,
+    binding_hash: pub Field,
     expected_merkle_root: pub Field,
 ) {
     // Part 1: sec.4.2 ownership proof -- owner commitment + Grumpkin
-    // Schnorr over Poseidon2(nft_hash, nonce). Same code path the
-    // standalone ownership circuit uses.
-    ownership::verify_ownership_per_su(pk, signature, nonce, owner, nft_hash);
+    // Schnorr over Poseidon3(nft_hash, nonce, binding_hash). Same code
+    // path the standalone ownership circuit uses.
+    ownership::verify_ownership_per_su(pk, signature, nonce, owner, nft_hash, binding_hash);
 
     // Part 2: Merkle inclusion against the same `nft_hash`.
     let computed_merkle_root = inclusion::compute_merkle_root(

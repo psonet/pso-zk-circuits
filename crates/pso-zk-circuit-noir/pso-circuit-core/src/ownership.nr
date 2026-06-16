@@ -62,19 +62,27 @@ pub fn verify_schnorr_grumpkin(
 ///
 /// ## Constraints
 ///
+/// 0. `pk` is a valid, non-identity Grumpkin point -- rejects the
+///    point at infinity and off-curve `(x, y)` witnesses before they
+///    feed the owner commitment or the signature verify.
 /// 1. `owner == Poseidon3(pk.x, pk.y, nonce)` -- proves the prover
 ///    knows a Grumpkin `(pk, nonce)` pair whose Poseidon commitment
 ///    equals the claimed `owner`.
-/// 2. `Schnorr-verify(pk, signature, Poseidon2(nft_hash, nonce).to_be_bytes())`
+/// 2. `Schnorr-verify(pk, signature, Poseidon3(nft_hash, nonce, binding_hash).to_be_bytes())`
 ///    -- proves the prover knows the Grumpkin secret key matching
 ///    `pk` and has signed a per-NFT message that binds the proof to a
-///    specific `(nft_hash, nonce)` pair.
+///    specific `(nft_hash, nonce)` triple AND the submission's
+///    `binding_hash`. Because `binding_hash = Poseidon4(sender, tdId,
+///    chainId)`, a proof minted for one `(sender, tdId, chainId)` tuple
+///    produces a different pre-hash and fails verification under any
+///    other -- this is what makes the proof non-replayable across
+///    callers, tribute drafts, and chains.
 ///
 /// ## Inputs
 ///
-/// All private to the prover except `owner` and `nft_hash`, which are
-/// public so the verifier (on-chain or otherwise) can supply the
-/// expected values:
+/// All private to the prover except `owner`, `nft_hash`, and
+/// `binding_hash`, which are public so the verifier (on-chain or
+/// otherwise) can supply the expected values:
 ///
 /// - `pk`: Grumpkin public key. For SUs this is the wallet's per-SU
 ///   `shared_pk` derived via App. A; for TDs this is a fresh per-TD
@@ -84,30 +92,50 @@ pub fn verify_schnorr_grumpkin(
 /// - `owner` (public): claimed Poseidon3 commitment from the NFT's
 ///   on-chain `derivedOwner` field.
 /// - `nft_hash` (public): per-NFT entity hash.
+/// - `binding_hash` (public): `Poseidon4(sender, tdId, chainId)` for
+///   the whole submission -- identical across every SU in one
+///   aggregation. The on-chain verifier recomputes it via precompile
+///   `0x0210` from `msg.sender`, `tributeDraftId`, and `block.chainid`.
 pub fn verify_ownership_per_su(
     pk: EmbeddedCurvePoint,
     signature: [u8; 64],
     nonce: Field,
     owner: Field,
     nft_hash: Field,
+    binding_hash: Field,
 ) {
-    // (1) Owner commitment.
+    // (0) Point validity. Reject the identity and any off-curve (x, y)
+    //     witness before it reaches the Poseidon commitment or the
+    //     scalar mul inside the Schnorr verify. Grumpkin's affine
+    //     equation is `y^2 = x^3 - 17`.
+    assert(!pk.is_infinite(), "pk is the Grumpkin identity point");
+    let x_cubed = pk.x * pk.x * pk.x;
+    assert(
+        pk.y * pk.y == x_cubed - 17,
+        "pk is not on the Grumpkin curve (y^2 != x^3 - 17)",
+    );
+
+    // (1) Owner commitment. Binds `pk`+`nonce` to the SU's stored
+    //     `derivedOwner`; deliberately independent of `binding_hash`
+    //     (the owner is fixed at SU mint, before any TD exists).
     let computed_owner = compute_ownership(pk, nonce);
     assert(
         computed_owner == owner,
         "owner mismatch: Poseidon3(pk, nonce) != public owner",
     );
 
-    // (2) Signature binding: Schnorr/Grumpkin over Poseidon2(nft_hash,
-    //     nonce).to_be_bytes(). The pre-hash binds the proof to BOTH
-    //     the NFT data AND the per-NFT nonce; a replay across NFTs
-    //     would produce a different pre-hash and fail verification.
-    let pre_hash_fr: Field = poseidon::bn254::hash_2([nft_hash, nonce]);
+    // (2) Signature binding: Schnorr/Grumpkin over Poseidon3(nft_hash,
+    //     nonce, binding_hash).to_be_bytes(). The pre-hash binds the
+    //     proof to the NFT data, the per-NFT nonce, AND the submission
+    //     binding; a replay across NFTs *or* across a different
+    //     (sender, tdId, chainId) produces a different pre-hash and
+    //     fails verification.
+    let pre_hash_fr: Field = poseidon::bn254::hash_3([nft_hash, nonce, binding_hash]);
     let pre_hash_bytes: [u8; 32] = pre_hash_fr.to_be_bytes();
 
     let signature_ok = verify_schnorr_grumpkin(pk, signature, pre_hash_bytes);
     assert(
         signature_ok,
-        "signature mismatch: Schnorr/Grumpkin over Poseidon2(nft_hash, nonce) failed",
+        "signature mismatch: Schnorr/Grumpkin over Poseidon3(nft_hash, nonce, binding_hash) failed",
     );
 }
