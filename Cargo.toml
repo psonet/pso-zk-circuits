@@ -24,13 +24,14 @@ pso-zk-canonical    = { path = "crates/pso-zk-canonical" }
 
 # Shared consensus-binding primitives. Consumed from crates.io
 # directly now that `pso-protocol` is published; the cargo-deny
-# wildcard concern is moot for registry deps. Bumped to ^0.6 for the
-# `binding_hash` public input on `OwnershipPublicInputs`: the ownership
-# / aggregation / full-proof circuits now fold it into the per-SU
-# Schnorr pre-hash `Poseidon3(nft_hash, nonce, binding_hash)` and expose
-# it as the trailing public input — so the circuits AND their VKs change
-# (regenerate `pso-zk-canonical`), not just a recompile.
-pso-protocol = "0.6"
+# wildcard concern is moot for registry deps. On ^0.7: 0.6 added the
+# `binding_hash` public input on `OwnershipPublicInputs` (folded into the
+# per-SU Schnorr pre-hash `Poseidon3(nft_hash, nonce, binding_hash)` and
+# exposed as the trailing input); 0.7 renamed the binding-hash id to the
+# generic `commitment_id`. The 0.7 bump is a positional, non-breaking
+# rename — the Noir circuits and their VKs are UNCHANGED (no regen), so
+# this is a dep bump only, keeping the whole stack in lockstep on ^0.7.
+pso-protocol = "0.7"
 
 # External
 pso-poseidon = "0.3"
