@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.6.0 - 2026-06-16
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>bind binding_hash into ownership/aggregation proofs; bump pso-protocol 0.6 - (f7d2c6f) - Anton Velichko
+
+- - -
+
 ## v0.5.1 - 2026-06-09
 #### Bug Fixes
 - (**deps**) make internal path-deps path-only (stop stale version reqs) - (633527e) - Anton Velichko
