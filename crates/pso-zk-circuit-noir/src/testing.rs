@@ -14,8 +14,9 @@
 //! `pso-integrations-shared::witness` builders.
 //!
 //! Witness semantics match sec. 4.2 of the privacy-preserving L2
-//! spec: signature is over `Poseidon2(nft_hash, nonce).to_be_bytes()`
-//! and `nft_hash` lives inside `OwnershipPublicInputs`.
+//! spec: signature is over `Poseidon3(nft_hash, nonce,
+//! binding_hash).to_be_bytes()` and `nft_hash` / `binding_hash` live
+//! inside `OwnershipPublicInputs`.
 
 use ark_bn254::Fr;
 
@@ -44,10 +45,16 @@ pub fn ownership_from_grumpkin_key(key: &GrumpkinKey, nonce: Fr) -> anyhow::Resu
 }
 
 /// Build an `OwnershipWitness` per sec. 4.2.
+///
+/// `binding_hash` is the submission binding `compute_binding_hash(sender,
+/// tdId, chainId)`; it is folded into the Schnorr pre-hash and exposed
+/// as a public input. Tests typically derive it via
+/// `pso_protocol::binding::compute_binding_hash`.
 pub fn build_ownership_witness<T: OwnableNFT + HashableNFT>(
     nft: &T,
     key: &GrumpkinKey,
     nonce: Fr,
+    binding_hash: Fr,
 ) -> anyhow::Result<OwnershipWitness> {
     let ownership_fr = nft.ownership();
     let ownership = fr_to_be32(&ownership_fr);
@@ -56,8 +63,8 @@ pub fn build_ownership_witness<T: OwnableNFT + HashableNFT>(
     let nft_hash_fr = nft.hash().map_err(|e| anyhow::anyhow!("nft hash: {e}"))?;
     let nft_hash = fr_to_be32(&nft_hash_fr);
 
-    let prehash_fr = pso_protocol::hash::poseidon2(nft_hash_fr, nonce)
-        .map_err(|e| anyhow::anyhow!("poseidon2(nft_hash, nonce): {e}"))?;
+    let prehash_fr = pso_protocol::hash::poseidon3(nft_hash_fr, nonce, binding_hash)
+        .map_err(|e| anyhow::anyhow!("poseidon3(nft_hash, nonce, binding_hash): {e}"))?;
     let signature = schnorr_sign_be(&key.sk_bytes, &prehash_fr)?;
 
     Ok(OwnershipWitness {
@@ -69,6 +76,7 @@ pub fn build_ownership_witness<T: OwnableNFT + HashableNFT>(
         public_inputs: OwnershipPublicInputs {
             ownership,
             nft_hash,
+            binding_hash: fr_to_be32(&binding_hash),
             signature,
         },
     })
@@ -81,6 +89,7 @@ pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
     nft: &T,
     key: &GrumpkinKey,
     nonce: Fr,
+    binding_hash: Fr,
     merkle_path: &[MerklePathElement],
 ) -> anyhow::Result<FullProofWitness> {
     let ownership_fr = nft.ownership();
@@ -90,8 +99,8 @@ pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
     let nft_hash_fr = nft.hash().map_err(|e| anyhow::anyhow!("nft hash: {e}"))?;
     let nft_hash = fr_to_be32(&nft_hash_fr);
 
-    let prehash_fr = pso_protocol::hash::poseidon2(nft_hash_fr, nonce)
-        .map_err(|e| anyhow::anyhow!("poseidon2(nft_hash, nonce): {e}"))?;
+    let prehash_fr = pso_protocol::hash::poseidon3(nft_hash_fr, nonce, binding_hash)
+        .map_err(|e| anyhow::anyhow!("poseidon3(nft_hash, nonce, binding_hash): {e}"))?;
     let signature = schnorr_sign_be(&key.sk_bytes, &prehash_fr)?;
 
     // Depth must match the FULL_PROOF circuit's path width (32, the
@@ -119,6 +128,7 @@ pub fn build_full_proof_witness<T: OwnableNFT + HashableNFT>(
             ownership: OwnershipPublicInputs {
                 ownership,
                 nft_hash,
+                binding_hash: fr_to_be32(&binding_hash),
                 signature,
             },
             merkle_root,

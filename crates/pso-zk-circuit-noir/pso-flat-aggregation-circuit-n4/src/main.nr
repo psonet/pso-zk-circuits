@@ -9,11 +9,15 @@
 //
 // ## Public-input layout
 //
-// `[owner_0, nft_hash_0, owner_1, nft_hash_1, ..., owner_{N-1}, nft_hash_{N-1}]`
+// `[owner_0, nft_hash_0, ..., owner_{N-1}, nft_hash_{N-1}, binding_hash]`
 //
 // The on-chain verifier supplies each `(owner_i, nft_hash_i)` pair
 // from the corresponding SU NFT's `derivedOwner` field and the
 // entity hash reconstructed via `pso_protocol::nft::compute_*_hash`.
+// The trailing `binding_hash` is shared by every slot and recomputed
+// on-chain via precompile `0x0210` from `msg.sender`,
+// `tributeDraftId`, and `block.chainid` -- it makes the aggregation
+// proof non-replayable across callers, tribute drafts, and chains.
 
 use pso_circuit_core::ownership;
 use std::embedded_curve_ops::EmbeddedCurvePoint;
@@ -24,8 +28,10 @@ pub fn main(
     pk: [EmbeddedCurvePoint; N],
     signature: [[u8; 64]; N],
     nonce: [Field; N],
-    public_inputs: pub [Field; 2 * N],
+    // 2N (owner, nft_hash) slots followed by one shared binding_hash.
+    public_inputs: pub [Field; 2 * N + 1],
 ) {
+    let binding_hash = public_inputs[2 * N];
     for i in 0..N {
         let owner = public_inputs[2 * i];
         let nft_hash = public_inputs[2 * i + 1];
@@ -35,6 +41,7 @@ pub fn main(
             nonce[i],
             owner,
             nft_hash,
+            binding_hash,
         );
     }
 }

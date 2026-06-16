@@ -86,7 +86,8 @@ fn main() {
         ownership,
         nft_hash,
     };
-    let witness = match testing::build_ownership_witness(&nft, &key, nonce) {
+    let binding_hash = Fr::rand(&mut OsRng);
+    let witness = match testing::build_ownership_witness(&nft, &key, nonce, binding_hash) {
         Ok(w) => w,
         Err(e) => {
             println!(

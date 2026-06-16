@@ -12,13 +12,24 @@
 //! `xtask regenerate-canonical` command; the output is committed
 //! straight into this file and `res/vks/*.vk`.
 //!
-//! ## Append-only
+//! ## Revision policy: replace-in-place (pre-launch) → append-only (at launch)
 //!
-//! Existing entries are **never modified**. New circuit revisions
-//! (different source ⇒ different `circuit_hash`) get appended as
-//! new descriptors. Deprecation of old descriptors is `pso-chain`'s
-//! concern (via `deprecated_at_block`); this crate just records what
-//! exists.
+//! **Today (pre-launch):** `regenerate-canonical` rewrites every
+//! descriptor in place from the current circuit sources — one
+//! descriptor per label. Changing a circuit's source changes its
+//! `circuit_hash`/`vk` and the old identity is **dropped**, not kept.
+//! CI's `--check` enforces `committed == fresh regen`, so the
+//! regenerated state is authoritative. This is intentional while the
+//! chain is unlaunched: a circuit-security change (e.g. the
+//! `binding_hash` proof binding) *should* retire the superseded,
+//! vulnerable circuit so its proofs stop verifying.
+//!
+//! **At chain launch:** switch to **append-only** — existing
+//! descriptors must then be frozen (a deployed `circuit_hash` has to
+//! keep verifying), new circuit revisions append as new descriptors,
+//! and deprecation becomes `pso-chain`'s concern (via
+//! `deprecated_at_block`). That requires teaching `regenerate-canonical`
+//! to retain prior-hash descriptors rather than overwrite them.
 //!
 //! ## Regenerate
 //!
@@ -77,92 +88,92 @@ pub struct CircuitDescriptor {
 
 pub const FULL_PROOF: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "a09844eb07939afe96f88c23cc2748b8c206d8eed0f9bbe69aabeb49ef7f3798"
+        "09b84fdadc1f26d15a4dba33b13a97c024ee6ea4490b1f763eefa5a459ccb813"
     ),
     label: "pso.full_proof",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/full_proof.vk"),
-    vk_hash: hex_literal::hex!("d0cc00eccd9f5861da67b90ac017a64485566936c73091a37712e55ec4881549"),
+    vk_hash: hex_literal::hex!("9af76486e3d0c1e9e52e22c6f4318871a16d6a3ce423858e339450c7c7495ebe"),
 };
 
 pub const OWNERSHIP: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "18db006ac6304a0ff2f4b624a1e31961223184f3638ce421161196a6e1b19c57"
+        "0eedf65e1bd368514e4b205e0ed5ad201615c3e2f366f3a2a240c09953730199"
     ),
     label: "pso.ownership",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/ownership.vk"),
-    vk_hash: hex_literal::hex!("8b0dbc83792074e488b0b63ce62c1ddd08020ffa6fe980917a53ea63c8c08ccf"),
+    vk_hash: hex_literal::hex!("734cd3b84cf89b1ce8255f5a760ef336ea8220871efb28cc5a1108e8c9ca5aaf"),
 };
 
 pub const FLAT_AGGREGATION_N1: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "501859afd14fffe1f25b72e36adf64ffcb7965d53561f585c2483c0a8ac99d07"
+        "030c57d8979aecc77d711c7e392ad51403b2038d5d2e4639e6139c848f21ab70"
     ),
     label: "pso.flat_aggregation.n1",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n1.vk"),
-    vk_hash: hex_literal::hex!("81ba4aab2186484f74201c6efda76ee844b69ff9638da88581226c2d1ab46010"),
+    vk_hash: hex_literal::hex!("a9972d88c234b04bea98cfaadedd2b445728dedb8eee5c1de58e1868030343ff"),
 };
 
 pub const FLAT_AGGREGATION_N2: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "114421c5b7ae3accef9eac72e35db6c12eb0a8597b967d5ed9a1cde82b957f63"
+        "540c226ca0d2ae6ba328e25fc832c12604263c166243b46555a0a8634b8b328c"
     ),
     label: "pso.flat_aggregation.n2",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n2.vk"),
-    vk_hash: hex_literal::hex!("a780524c3a783e11e257f740a59e8bdf04c80ebf8298826ea0a344d3c09a69a9"),
+    vk_hash: hex_literal::hex!("0578c2d297d4134c7954ef1f54f5efdb157956c332d78693e3c68c24a8b7cb18"),
 };
 
 pub const FLAT_AGGREGATION_N4: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "616000a21fdf24c35623938159fcbebdaf0975961c5fc98783ace1f468f09a6c"
+        "39053f5e9107ede58ea03c67a7741ddc7ca4890702d99ab37c6e0f655b285c77"
     ),
     label: "pso.flat_aggregation.n4",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n4.vk"),
-    vk_hash: hex_literal::hex!("43d128ea1bc7e9b101b286ec5388a3151d39264019112c6810e1e9516d6e3df7"),
+    vk_hash: hex_literal::hex!("e205cf284fb8c45dfa6e7740c06eb0fbe72984c6906aac50e305e27ea90fe889"),
 };
 
 pub const FLAT_AGGREGATION_N8: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "f42a27324ca6a56377130b10e2c3760d0697421c5463fbd1463699727ddedb7b"
+        "a6af6c76847236cfdd835895714cb0c4d9eeb4a80f22022c5fe767b4c61e3c25"
     ),
     label: "pso.flat_aggregation.n8",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n8.vk"),
-    vk_hash: hex_literal::hex!("5f7901a014e38c7ec0377bf545609f5d3271fbc669374bfab4da8c55c0dbe3ef"),
+    vk_hash: hex_literal::hex!("57b96488e91fd0b5cbeedefbe9593d8e116c3d2c698c488a065febe4d75bb102"),
 };
 
 pub const FLAT_AGGREGATION_N16: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "ce83efdd3ccfe05b1d84e44d5056f0b110af99661bc50b578888b968d27549db"
+        "f333f2a85be78bbbb2bd5a8cb8e6806e32fd80b9a2c073503bece8ff762ac4a9"
     ),
     label: "pso.flat_aggregation.n16",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n16.vk"),
-    vk_hash: hex_literal::hex!("794ccf2dfd137fe170fd24d255c214ff3701815dbc4746e7675548a3c58c92e0"),
+    vk_hash: hex_literal::hex!("72d7b69e9a6d78411e4fcbee489866d0ee9b47e35bb23bdfbffebde0a19e3b3f"),
 };
 
 pub const FLAT_AGGREGATION_N32: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "783b54ce02aec97efb12d71772d2d3123f6d747207e74a6e7d1df217a6f17c88"
+        "5afa364ed03d9d0377100dd370d1aefc351f21c1f7e0763cad177b6968b331d5"
     ),
     label: "pso.flat_aggregation.n32",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n32.vk"),
-    vk_hash: hex_literal::hex!("fe7cd93a4c44ae2ca6c90ce905bd1a58f5595f1dd6c13a030a8e5beba197a7da"),
+    vk_hash: hex_literal::hex!("5d127a53b3c94533d7b524a8e6c6f624665cf4ac6f9a1a2da3b258903bb45752"),
 };
 
 pub const FLAT_AGGREGATION_N64: CircuitDescriptor = CircuitDescriptor {
     circuit_hash: hex_literal::hex!(
-        "8e5624c7d39cd6bc0e5fab64475c7bb2944dfd345101d6c7175903dfac36bd89"
+        "f670d8e84c1506a75d2513882eea6d9111ec228fbc80c77e69234f0d3123c674"
     ),
     label: "pso.flat_aggregation.n64",
     version: "1.0.0",
     vk_bytes: include_bytes!("../res/vks/flat_aggregation_n64.vk"),
-    vk_hash: hex_literal::hex!("7e734ada2d03be09bc923934539837be6cd08cfa717db3c521d6c0df18bf88d5"),
+    vk_hash: hex_literal::hex!("3887916da4879ccad8b461f8a125d606bf8108429fc880cfb6f43dc14c7298ce"),
 };
 
 pub const ALL_CIRCUITS: &[&CircuitDescriptor] = &[

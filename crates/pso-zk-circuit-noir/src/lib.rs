@@ -362,6 +362,7 @@ impl NoirFullProofCircuit {
         //     merkle_path_indices: [u8; 32],
         //     owner: pub Field,
         //     nft_hash: pub Field,
+        //     binding_hash: pub Field,
         //     expected_merkle_root: pub Field,
 
         use pso_protocol::merkle::MerklePathElementIndex;
@@ -428,6 +429,11 @@ impl NoirFullProofCircuit {
         // nft_hash as pub Field — lives inside ownership now.
         witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.ownership.nft_hash,
+        ));
+
+        // binding_hash as pub Field — lives inside ownership.
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
+            &witness.public_inputs.ownership.binding_hash,
         ));
 
         // expected_merkle_root as pub Field
@@ -533,11 +539,12 @@ impl NoirOwnershipCircuit {
     /// `pso-ownership-circuit/src/main.nr`):
     ///
     /// ```text
-    /// pk          : EmbeddedCurvePoint    // private — 2 Fields (pk.x, pk.y)
-    /// signature   : [u8; 64]              // private — 64 bytes (Schnorr s||e)
-    /// nonce       : Field                 // private
-    /// owner       : pub Field
-    /// nft_hash    : pub Field
+    /// pk           : EmbeddedCurvePoint    // private — 2 Fields (pk.x, pk.y)
+    /// signature    : [u8; 64]              // private — 64 bytes (Schnorr s||e)
+    /// nonce        : Field                 // private
+    /// owner        : pub Field
+    /// nft_hash     : pub Field
+    /// binding_hash : pub Field
     /// ```
     ///
     /// `public_key_x` / `public_key_y` in `OwnershipPrivateInputs` are
@@ -573,6 +580,10 @@ impl NoirOwnershipCircuit {
         // nft_hash as pub Field
         witness_vec.push(FieldElement::from_be_bytes_reduce(
             &witness.public_inputs.nft_hash,
+        ));
+        // binding_hash as pub Field
+        witness_vec.push(FieldElement::from_be_bytes_reduce(
+            &witness.public_inputs.binding_hash,
         ));
 
         from_vec_to_witness_map(witness_vec).map_err(Error::msg)
@@ -896,9 +907,12 @@ mod tests {
     #[test]
     fn test_full_proof_round_trip() {
         let (nft, secret_key, nonce, merkle_path) = make_test_nft();
+        let binding_hash =
+            pso_protocol::binding::compute_binding_hash(&[7u8; 20], &[9u8; 32], 1).unwrap();
 
         let witness =
-            testing::build_full_proof_witness(&nft, &secret_key, nonce, &merkle_path).unwrap();
+            testing::build_full_proof_witness(&nft, &secret_key, nonce, binding_hash, &merkle_path)
+                .unwrap();
 
         let circuit_bytecode = circuit_loader::load_circuit("data/full_proof.json").unwrap();
         let circuit_config = NoirCircuitConfig {
@@ -925,8 +939,11 @@ mod tests {
     #[test]
     fn test_ownership_proof_round_trip() {
         let (nft, secret_key, nonce, _merkle_path) = make_test_nft();
+        let binding_hash =
+            pso_protocol::binding::compute_binding_hash(&[7u8; 20], &[9u8; 32], 1).unwrap();
 
-        let witness = testing::build_ownership_witness(&nft, &secret_key, nonce).unwrap();
+        let witness =
+            testing::build_ownership_witness(&nft, &secret_key, nonce, binding_hash).unwrap();
 
         let circuit_bytecode = circuit_loader::load_circuit("data/ownership_proof.json").unwrap();
         let circuit_config = NoirCircuitConfig {
