@@ -192,3 +192,106 @@ where
         Ok(response.verified)
     }
 }
+
+/// Verify an UltraHonkKeccak proof against a raw verification key — without a
+/// compile-time [`Circuit`] type.
+///
+/// Where [`ProofVerifier`] needs the concrete circuit type `C` (to supply
+/// `C::VK_BYTES` and reshape a typed `C::PublicInputs` into field words), this
+/// takes the verification key and the proof as opaque bytes. That makes it the
+/// right seam for a circuit-agnostic consumer such as the chain's `zk_verify`
+/// precompile, which only has a `vk_bytes` looked up at runtime from the
+/// canonical registry plus the proof the caller submitted — and must stay
+/// decoupled from every circuit's public-input layout.
+pub trait RawVerifier {
+    /// Verify the self-describing EVM "combined" proof against `vk_bytes`.
+    ///
+    /// `combined_proof` is the byte layout the on-chain verifier consumes:
+    ///
+    /// ```text
+    /// [4B BE num_public_inputs][32B × num_public_inputs][proof fields …]
+    /// ```
+    ///
+    /// i.e. a big-endian `u32` count, then that many 32-byte public-input
+    /// words, then the proof as concatenated 32-byte field elements. The split
+    /// is recovered from the header alone — no VK introspection needed.
+    ///
+    /// The global bb CRS must already be initialized (see [`preinit_srs`]);
+    /// this neither sizes nor fetches it. Returns `Ok(false)` for a
+    /// well-formed-but-invalid proof and `Err` only for a malformed blob or an
+    /// FFI failure.
+    fn verify_combined(&self, vk_bytes: &[u8], combined_proof: &[u8]) -> Result<bool, Error>;
+}
+
+impl RawVerifier for Barretenberg {
+    fn verify_combined(&self, vk_bytes: &[u8], combined_proof: &[u8]) -> Result<bool, Error> {
+        // Header: big-endian u32 public-input count.
+        let header = combined_proof
+            .get(..4)
+            .ok_or_else(|| Error::Proof("combined proof shorter than 4-byte header".into()))?;
+        let num_public = u32::from_be_bytes(header.try_into().expect("4 bytes")) as usize;
+
+        // [4 .. 4 + 32·N] public-input words.
+        let pub_end = 4 + num_public * 32;
+        let pub_bytes = combined_proof
+            .get(4..pub_end)
+            .ok_or_else(|| Error::Proof("combined proof truncated in public inputs".into()))?;
+        let public_inputs: Vec<Vec<u8>> = pub_bytes.chunks_exact(32).map(<[u8]>::to_vec).collect();
+
+        // Remainder is the proof, as 32-byte field words.
+        let proof_bytes = &combined_proof[pub_end..];
+        if !proof_bytes.len().is_multiple_of(32) {
+            return Err(Error::Proof(
+                "combined proof: proof section not a multiple of 32 bytes".into(),
+            ));
+        }
+        let proof: Vec<Vec<u8>> = proof_bytes.chunks_exact(32).map(<[u8]>::to_vec).collect();
+
+        let settings = settings_ultra_honk_keccak(self.disable_zk);
+
+        // bb's global CRS / prover — serialize against concurrent prove/verify.
+        let _bb = bb_lock();
+        let mut api = Self::api()?;
+        let response = api
+            .circuit_verify(vk_bytes, public_inputs, proof, settings)
+            .map_err(|e| Error::Proof(format!("bb raw verify: {e}")))?;
+        Ok(response.verified)
+    }
+}
+
+#[cfg(test)]
+mod raw_verifier_tests {
+    use super::*;
+
+    // These exercise `verify_combined`'s blob-parsing guards, which all return
+    // before the FFI `circuit_verify` call — so they need neither a CRS nor a
+    // real proof. A well-formed blob would reach bb and is covered by the
+    // integration tests that stand up the SRS.
+
+    #[test]
+    fn rejects_header_shorter_than_4_bytes() {
+        assert!(Barretenberg::default()
+            .verify_combined(b"vk", &[0u8; 3])
+            .is_err());
+    }
+
+    #[test]
+    fn rejects_public_inputs_truncated() {
+        // Header claims 2 public inputs (needs 64 bytes) but only 10 follow.
+        let mut blob = 2u32.to_be_bytes().to_vec();
+        blob.extend_from_slice(&[0u8; 10]);
+        assert!(Barretenberg::default()
+            .verify_combined(b"vk", &blob)
+            .is_err());
+    }
+
+    #[test]
+    fn rejects_proof_not_multiple_of_32() {
+        // Zero public inputs, then a 33-byte proof section.
+        let mut blob = 0u32.to_be_bytes().to_vec();
+        blob.extend_from_slice(&[0u8; 33]);
+        assert!(Barretenberg::default()
+            .verify_combined(b"vk", &blob)
+            .is_err());
+    }
+}
