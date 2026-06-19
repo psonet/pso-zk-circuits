@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.9.0 - 2026-06-19
+#### Features
+- (**zk-backend**) add RawVerifier for circuit-agnostic UltraHonkKeccak verify - (9784149) - Anton Velichko
+
+- - -
+
 ## v0.8.0 - 2026-06-19
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>port to the pso-protocol 0.8 stack (pso-zk-backend + pso-zk-canonical) - (9db11e7) - Anton Velichko
