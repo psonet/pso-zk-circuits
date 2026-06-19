@@ -1,36 +1,19 @@
-# Unified CI + release pipeline for pso-zk-circuits. Mirrors
-# psonet/pso-chain's `ci.yml` layout (resolve -> check/test ->
-# build-ios + build-android -> tag -> github-release) with two
-# domain tweaks:
+# CI + release pipeline for pso-zk-circuits (resolve -> check/test ->
+# tag -> publish-crates-io -> github-release). A library workspace —
+# no deployable binary.
 #
-#   - no `image` / Dockerfile job — pso-zk-circuits is a library
-#     crate consumed by pso-chain / pso-integration / the wallet
-#     SDKs; there's no deployable binary to ship.
-#   - mobile cross-compile (iOS + Android) replaces the linux x86_64
-#     release-binaries step. The Wallet SDK consumes the C ABI
-#     surface of `pso-zk-circuit-noir` from Swift / Kotlin, so we
-#     ship a per-target `libpso_zk_circuit_noir.{a,so}` plus a
-#     combined `libpso_zk_circuit_noir.xcframework` for SwiftPM
-#     integration.
+# Two crates: `pso-zk-canonical` (the publishable, no-toolchain
+# crate — builds from committed frozen artifacts) and `pso-zk-backend`
+# (`publish = false`: pulls the noir toolchain via git + links C++
+# barretenberg via FFI, so only consumed as a workspace/git dep). The
+# mobile FFI surface lives in the downstream UniFFI wallet crate, not here.
 #
-#     Caveat: `pso-zk-circuit-noir -> barretenberg-rs` links a C++
-#     `barretenberg` static lib whose CMake config may not (yet)
-#     cross-build to iOS / Android targets. Both build-ios and
-#     build-android run with `continue-on-error: true` so a
-#     toolchain failure surfaces in the job logs but doesn't block
-#     the cog tag step on green main pushes. `github-release` uses
-#     `if: always()` and only attaches whichever artifacts uploaded
-#     successfully.
-#
-# Triggers (same shape as pso-chain):
+# Triggers:
 #   push:main         full pipeline incl. cog auto-bump
 #   pull_request      check / test only
-#   push:tags:["v*"]  release-only path; skip tests, run
-#                     build-ios + build-android + github-release
-#                     against the named tag
-#   workflow_dispatch with `tag` input: same as push:tags but
-#                     maintainer-named; empty input runs the
-#                     normal main pipeline
+#   push:tags:["v*"]  release-only path; publish + github-release for the tag
+#   workflow_dispatch with `tag` input: maintainer-named re-release;
+#                     empty input runs the normal main pipeline
 name: ci
 
 on:
@@ -138,12 +121,6 @@ jobs:
         rust: [stable, beta]
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/configure-private-git
-        with:
-          token: ${{ secrets.PSONET_REPO_TOKEN }}
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -170,7 +147,7 @@ jobs:
 
       - name: cargo clippy
         run: |
-          cargo clippy --all-targets --all-features -- \
+          cargo clippy --workspace --all-targets --all-features -- \
             -D warnings \
             -D clippy::dbg_macro \
             -D clippy::print_stdout \
@@ -184,274 +161,6 @@ jobs:
 
       - name: cargo test --workspace
         run: cargo test --workspace
-
-  # --------------------------------------------------------------
-  # iOS cross-compile. Produces three per-target `.a` files and a
-  # combined `.xcframework` bundle for SwiftPM consumption.
-  #
-  # `continue-on-error: true` because barretenberg-rs links C++
-  # barretenberg, whose CMake config may not (yet) ship an iOS
-  # toolchain file — the job is best-effort, the `tag` stage below
-  # does not depend on its result.
-  # --------------------------------------------------------------
-  build-ios:
-    name: Build iOS static libs + xcframework
-    runs-on: macos-latest
-    needs: [resolve, check]
-    if: |
-      always() &&
-      (needs.resolve.outputs.release_tag != '' ||
-       (needs.check.result == 'success' &&
-        github.event_name == 'push' &&
-        github.ref == 'refs/heads/main' &&
-        !startsWith(github.event.head_commit.message, 'chore(version):') &&
-        !contains(github.event.head_commit.message, '[skip ci]')))
-    continue-on-error: true
-    strategy:
-      # `barretenberg-rs`'s build.rs downloads prebuilt FFI binaries
-      # and supports a fixed target list:
-      #
-      #   x86_64-linux, aarch64-linux, x86_64-apple-darwin,
-      #   aarch64-apple-darwin, aarch64-apple-ios,
-      #   aarch64-apple-ios-sim, aarch64-linux-android,
-      #   x86_64-linux-android
-      #
-      # That covers iOS device + Apple-Silicon simulator. There is
-      # no `x86_64-apple-ios-sim` rust target (the Intel simulator
-      # is `x86_64-apple-ios`, which upstream barretenberg doesn't
-      # ship either), so we don't try to build it — Apple Silicon
-      # is the only host for the iOS simulator going forward.
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-apple-ios
-            label: ios-arm64
-          - target: aarch64-apple-ios-sim
-            label: ios-sim-arm64
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.release_tag || github.ref }}
-          persist-credentials: false
-
-      - uses: ./.github/actions/configure-private-git
-        with:
-          token: ${{ secrets.PSONET_REPO_TOKEN }}
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Add Rust target
-        run: rustup target add ${{ matrix.target }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ios-${{ matrix.target }}
-          save-if: ${{ needs.resolve.outputs.release_tag == '' }}
-
-      - name: cargo build --release -p pso-zk-circuit-noir
-        run: cargo build --release -p pso-zk-circuit-noir --target ${{ matrix.target }}
-
-      - name: Stage static lib
-        run: |
-          set -euo pipefail
-          mkdir -p dist/${{ matrix.label }}
-          cp "target/${{ matrix.target }}/release/libpso_zk_circuit_noir.a" \
-             "dist/${{ matrix.label }}/libpso_zk_circuit_noir.a"
-          ls -lh "dist/${{ matrix.label }}/"
-
-      - name: Upload per-target static lib
-        uses: actions/upload-artifact@v4
-        with:
-          name: pso-zk-circuit-noir-${{ matrix.label }}
-          path: dist/${{ matrix.label }}/libpso_zk_circuit_noir.a
-          if-no-files-found: error
-          retention-days: 7
-
-  # Combine the three iOS slices into a single .xcframework that
-  # SwiftPM / Xcode can consume directly. Runs after all three
-  # build-ios matrix legs (or skips itself if no slices made it
-  # through). Best-effort like the matrix above.
-  build-ios-xcframework:
-    name: Assemble iOS xcframework
-    runs-on: macos-latest
-    needs: [resolve, build-ios]
-    if: |
-      always() &&
-      (needs.resolve.outputs.release_tag != '' ||
-       (github.event_name == 'push' &&
-        github.ref == 'refs/heads/main' &&
-        !startsWith(github.event.head_commit.message, 'chore(version):') &&
-        !contains(github.event.head_commit.message, '[skip ci]')))
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.release_tag || github.ref }}
-          persist-credentials: false
-
-      - name: Download iOS slices
-        uses: actions/download-artifact@v4
-        with:
-          path: slices/
-          pattern: pso-zk-circuit-noir-ios-*
-          merge-multiple: false
-
-      - name: Build xcframework
-        run: |
-          set -euo pipefail
-          ls -R slices/
-
-          # `xcodebuild -create-xcframework` rejects two slices that
-          # share a platform (iphonesimulator) unless they're merged
-          # into a single fat archive first with `lipo`. The two sim
-          # legs (arm64 + x86_64) get lipo'd; the device leg ships
-          # standalone.
-          device_lib=""
-          sim_arm64=""
-          sim_x86_64=""
-          [ -f slices/pso-zk-circuit-noir-ios-arm64/libpso_zk_circuit_noir.a ]      && device_lib="slices/pso-zk-circuit-noir-ios-arm64/libpso_zk_circuit_noir.a"
-          [ -f slices/pso-zk-circuit-noir-ios-sim-arm64/libpso_zk_circuit_noir.a ]  && sim_arm64="slices/pso-zk-circuit-noir-ios-sim-arm64/libpso_zk_circuit_noir.a"
-          [ -f slices/pso-zk-circuit-noir-ios-sim-x86_64/libpso_zk_circuit_noir.a ] && sim_x86_64="slices/pso-zk-circuit-noir-ios-sim-x86_64/libpso_zk_circuit_noir.a"
-
-          args=()
-          if [ -n "$device_lib" ]; then
-            args+=( -library "$device_lib" )
-          fi
-          if [ -n "$sim_arm64" ] && [ -n "$sim_x86_64" ]; then
-            mkdir -p slices/ios-sim-fat
-            lipo -create "$sim_arm64" "$sim_x86_64" \
-              -output slices/ios-sim-fat/libpso_zk_circuit_noir.a
-            args+=( -library slices/ios-sim-fat/libpso_zk_circuit_noir.a )
-          elif [ -n "$sim_arm64" ]; then
-            args+=( -library "$sim_arm64" )
-          elif [ -n "$sim_x86_64" ]; then
-            args+=( -library "$sim_x86_64" )
-          fi
-
-          if [ ${#args[@]} -eq 0 ]; then
-            echo "::error::no iOS slices available to assemble xcframework"
-            exit 1
-          fi
-
-          mkdir -p dist
-          xcodebuild -create-xcframework \
-            "${args[@]}" \
-            -output dist/libpso_zk_circuit_noir.xcframework
-
-          # `-create-xcframework` writes a directory; the release
-          # attachment wants a single file, so zip it up.
-          (cd dist && zip -r libpso_zk_circuit_noir.xcframework.zip libpso_zk_circuit_noir.xcframework)
-          ls -lh dist/
-
-      - name: Upload xcframework
-        uses: actions/upload-artifact@v4
-        with:
-          name: pso-zk-circuit-noir-xcframework
-          path: dist/libpso_zk_circuit_noir.xcframework.zip
-          if-no-files-found: error
-          retention-days: 7
-
-  # --------------------------------------------------------------
-  # Android NDK cross-compile via cargo-ndk. Produces per-ABI
-  # `libpso_zk_circuit_noir.so`. Best-effort, same caveat as iOS.
-  # --------------------------------------------------------------
-  build-android:
-    name: Build Android shared libs
-    runs-on: ubuntu-latest
-    needs: [resolve, check]
-    if: |
-      always() &&
-      (needs.resolve.outputs.release_tag != '' ||
-       (needs.check.result == 'success' &&
-        github.event_name == 'push' &&
-        github.ref == 'refs/heads/main' &&
-        !startsWith(github.event.head_commit.message, 'chore(version):') &&
-        !contains(github.event.head_commit.message, '[skip ci]')))
-    continue-on-error: true
-    strategy:
-      # `barretenberg-rs` only ships prebuilt FFI binaries for the
-      # 64-bit Android targets (`aarch64-linux-android` and
-      # `x86_64-linux-android`). The 32-bit ABIs (armeabi-v7a / x86)
-      # would compile but the build script hard-fails with
-      # "Unsupported target for FFI backend" before even invoking
-      # the cross-toolchain — see the barretenberg-rs 5.x build.rs
-      # supported-target list. Dropping them from the matrix until
-      # upstream ships 32-bit binaries.
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-linux-android
-            label: android-arm64-v8a
-            abi: arm64-v8a
-          - target: x86_64-linux-android
-            label: android-x86_64
-            abi: x86_64
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.release_tag || github.ref }}
-          persist-credentials: false
-
-      - uses: ./.github/actions/configure-private-git
-        with:
-          token: ${{ secrets.PSONET_REPO_TOKEN }}
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Add Rust target
-        run: rustup target add ${{ matrix.target }}
-
-      - uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r27c
-          add-to-path: false
-
-      - name: Install C++ toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake clang pkg-config
-
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: android-${{ matrix.target }}
-          save-if: ${{ needs.resolve.outputs.release_tag == '' }}
-
-      - name: cargo ndk build -p pso-zk-circuit-noir
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          cargo ndk \
-            --target ${{ matrix.abi }} \
-            --platform 24 \
-            --output-dir ./jniLibs \
-            build --release -p pso-zk-circuit-noir
-
-      - name: Stage shared lib
-        run: |
-          set -euo pipefail
-          mkdir -p dist/${{ matrix.label }}
-          # cargo-ndk lays output as jniLibs/<abi>/<lib>.so
-          cp "jniLibs/${{ matrix.abi }}/libpso_zk_circuit_noir.so" \
-             "dist/${{ matrix.label }}/libpso_zk_circuit_noir.so"
-          ls -lh "dist/${{ matrix.label }}/"
-
-      - name: Upload per-ABI shared lib
-        uses: actions/upload-artifact@v4
-        with:
-          name: pso-zk-circuit-noir-${{ matrix.label }}
-          path: dist/${{ matrix.label }}/libpso_zk_circuit_noir.so
-          if-no-files-found: error
-          retention-days: 7
 
   # --------------------------------------------------------------
   # Version bump + tag. Only on push:main, only after `check` is
@@ -521,22 +230,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
-          persist-credentials: false
-
-      - uses: ./.github/actions/configure-private-git
-        with:
-          token: ${{ secrets.PSONET_REPO_TOKEN }}
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: cargo
 
-      # Only `pso-zk-canonical` ships to crates.io. `pso-zk-circuit-noir`
-      # depends on `noir_rs` via a git ref that crates.io cannot resolve
-      # (upstream noir_rs publishes at much older versions), so it is
-      # distributed only via git deps + the mobile binaries attached to
-      # each GH Release. Re-enable the publish step here once upstream
-      # noir_rs publishes 1.0.0-beta.20+ to crates.io.
+      # Only `pso-zk-canonical` ships to crates.io. `pso-zk-backend`
+      # is `publish = false` — it pulls the noir toolchain via git refs that
+      # crates.io cannot resolve, so it is consumed only as a workspace/git dep.
       - name: Publish pso-zk-canonical
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -572,7 +273,7 @@ jobs:
   github-release:
     name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: [resolve, tag, build-ios, build-ios-xcframework, build-android, publish-crates-io]
+    needs: [resolve, tag, publish-crates-io]
     if: |
       always() &&
       (needs.tag.result == 'success' && needs.tag.outputs.tag != '' ||
@@ -589,13 +290,6 @@ jobs:
         with:
           ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
 
-      - name: Download all mobile artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
-          pattern: pso-zk-circuit-noir-*
-          merge-multiple: false
-
       - name: Download pso-zk-canonical .crate artifact
         if: needs.publish-crates-io.result == 'success'
         uses: actions/download-artifact@v4
@@ -609,18 +303,6 @@ jobs:
           set -euo pipefail
           mkdir -p release/
           shopt -s nullglob
-          # Mobile slices — actions/download-artifact@v4 with
-          # merge-multiple: false writes each artifact into its own
-          # subdir matching the upload name. Walk those subdirs and
-          # copy the inner file out, prefixing it with the artifact
-          # name so two `.a` files (one per slice) don't collide.
-          for dir in artifacts/pso-zk-circuit-noir-*/; do
-            name="$(basename "$dir")"
-            for f in "$dir"*; do
-              fname="$(basename "$f")"
-              cp "$f" "release/${name}-${fname}"
-            done
-          done
           # pso-zk-canonical .crate — byte-identical to the
           # crates.io upload, attached for downstream consumers that
           # prefer GitHub-hosted artifacts.

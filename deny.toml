@@ -109,6 +109,10 @@ skip = [
     { crate = "crypto-common" },
     { crate = "block-buffer" },
     { crate = "cpufeatures" },
+    # blake2 0.10 (pso-poseidon) vs 0.11-rc (noir beta.22 bn254_blackbox_solver);
+    # generic-array 0.14 (digest 0.10 stack) vs 1.x (pso-protocol codec).
+    { crate = "blake2" },
+    { crate = "generic-array" },
     # thiserror 1.x (noir, some pso-* deps) vs 2.x (rest of pso-*).
     { crate = "thiserror" },
     { crate = "thiserror-impl" },
