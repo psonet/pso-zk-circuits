@@ -4,148 +4,74 @@
 [![CI](https://github.com/psonet/pso-zk-circuits/actions/workflows/ci.yml/badge.svg)](https://github.com/psonet/pso-zk-circuits/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Noir circuits and the Rust FFI prover wrapper** for the PSO
-zero-knowledge proof system. One of four sibling repos in the
-post-extraction layout:
+The PSO **zero-knowledge layer**: the canonical Noir circuits (their committed
+on-chain identities and the witness / public-input types) plus the proving
+backend. A Cargo workspace of two crates built on the generic
+[`pso-protocol`](https://github.com/psonet/pso-protocol) traits:
 
-- [`pso-protocol`](https://github.com/psonet/pso-protocol) — consensus-binding hash primitives
-  and witness types (consumed here for type definitions).
-- **`pso-zk-circuits`** — Noir circuit sources + the vendored `noir_rs`-based
-  prover/verifier wrapper + canonical descriptors.
-- `pso-integration` (internal) — client-side integration:
-  UniFFI wallet bindings, SRA registrar, CLI, VDF FFI (planned), and
-  L2-interaction code.
-- `pso-chain` (internal) — PSO L2 chain (calls into this crate's
-  `derive_canonical_keccak_vk` from `xtask regenerate-canonical`).
-
-This repo absorbs the circuit half of the legacy `pso-zk-proof`
-workspace. The integration half (mobile/SRA UniFFI, CLI, NFT domain
-types, plus the VDF FFI and L2 RPC code coming next) lives in
-`pso-integration`.
-
-## Why split it out
-
-The previous monorepo coupled three concerns: hash primitives, ZK
-circuits, and wallet integration. Each has a different cadence:
-
-| Concern               | Cadence                       | Repo               |
-| --------------------- | ----------------------------- | ------------------ |
-| Consensus formulas    | Hardfork-gated                | `pso-protocol`     |
-| ZK circuits + prover  | Coordinated circuit upgrades  | `pso-zk-circuits`  |
-| FFI / wallets / CLI   | Wallet release cadence        | `pso-integration`  |
-
-Keeping them in separate repos prevents wallet hotfixes from forcing
-chain redeploys, prevents circuit recompiles from rebuilding wallets,
-and lets each consumer pin the dependency that matches its release
-process.
+- **[`pso-zk-canonical`](crates/pso-zk-canonical)** — concrete circuit + witness
+  types (ownership, flat-aggregation tiers n1–n64, full proof) **and** the
+  in-code, versioned **circuit registry**: every released circuit version with
+  its `circuit_hash` / VK / dotted label — the authoritative on-chain identity
+  source `pso-chain` consumes. Pure data + a **read-only `build.rs`** (reads the
+  committed frozen artifacts; never runs the toolchain). **Published to crates.io.**
+- **[`pso-zk-backend`](crates/pso-zk-backend)** — the Noir proving backend: a
+  shared ACVM witness-solving core + a barretenberg (UltraHonkKeccak, FFI)
+  prover/verifier. Pulls the noir toolchain (`acir`/`acvm`/`bn254_blackbox_solver`)
+  via git and links C++ barretenberg, so it is **`publish = false`** (consumed as
+  a workspace / git dependency).
 
 ## Layout
 
 ```
 pso-zk-circuits/
-├── Cargo.toml                          # Three-member workspace
+├── Cargo.toml                       # virtual workspace + [workspace.dependencies]
 ├── crates/
-│   ├── pso-zk-circuit-noir/            # noir_rs FFI prover wrapper
-│   │   ├── src/
-│   │   │   ├── lib.rs                  # NoirFullProofCircuit, NoirOwnershipCircuit,
-│   │   │   │                           # NoirSuOwnershipAggregationCircuit + Noir
-│   │   │   │                           # witness-map serialization.
-│   │   │   ├── circuit_traits.rs       # ZKCircuit, Proof, ZKCircuitVersion
-│   │   │   │                           # (used to live in pso-zk-core)
-│   │   │   └── testing.rs              # k256-aware witness builders
-│   │   │                               # for tests/benches.
-│   │   ├── pso-circuit-core/           # Noir package — shared circuit ops
-│   │   ├── pso-ownership-circuit/      # Noir package — ownership proof
-│   │   ├── pso-full-circuit/           # Noir package — ownership + Merkle
-│   │   ├── pso-su-ownership-aggregation-circuit-n{1,2,4,6,8,16,32,64}/
-│   │   │                               # Tiered aggregation circuits
-│   │   ├── tests/                      # End-to-end prove/verify round-trips
-│   │   ├── benches/                    # criterion proof_perf bench
-│   │   └── data/                       # Pre-compiled ACIR JSONs (committed
-│   │                                   # so consumers don't need a Noir
-│   │                                   # toolchain to use the prover).
-│   └── pso-zk-canonical/               # Authoritative circuit descriptors:
-│                                       # circuit_hash + canonical VK bytes.
-│                                       # Pure static data — pso-chain links
-│                                       # against this for the on-chain
-│                                       # zk_verify precompile.
-└── xtask/                              # `cargo xtask regenerate-canonical`
-                                        # rebuilds the descriptors via
-                                        # noir_rs FFI (so chain-side and
-                                        # wallet-side VKs are bit-identical).
+│   ├── pso-zk-canonical/            # circuit + witness types, the registry, frozen artifacts
+│   │   ├── noir/                    # .nr circuit sources
+│   │   ├── resources/circuits/      # committed frozen bytecode + VKs (per version)
+│   │   ├── circuits/manifest.toml   # append-only version manifest
+│   │   └── build.rs                 # read-only: frozen artifacts → generated types
+│   └── pso-zk-backend/              # ACVM solve + barretenberg FFI prove/verify
+├── xtask/                           # `freeze-circuits` — the only step that runs nargo/bb
+└── mise.toml                        # toolchain install + task wrappers
 ```
-
-## Dependencies
-
-- [`pso-protocol`](https://github.com/psonet/pso-protocol) — published
-  to crates.io as `pso-protocol = "0.2"`. Provides consensus-binding
-  hash primitives and witness types.
-- `noir_rs` proving glue — vendored directly into `crates/pso-zk-circuit-noir/src/`
-  (Apache-2.0; see `crates/pso-zk-circuit-noir/NOTICE.md`). Derived
-  from [zkpassport/noir_rs](https://github.com/zkpassport/noir_rs);
-  underlying `noir-lang/noir` crates are direct deps pinned to
-  `v1.0.0-beta.20`. Heavy native build (multi-minute first compile).
-- `k256` (regular dep) — needed by the `testing.rs` module that the
-  crate's own tests/benches use to build witnesses from real keypairs.
 
 ## Build
 
 ```bash
 cargo build --workspace
-cargo test  --workspace --tests --no-run     # compile tests
-cargo test  -p pso-zk-canonical              # fast: pure-data tests
+cargo test  --workspace
 ```
 
-Full round-trip tests (`pso-zk-circuit-noir`'s integration tests) take
-tens of seconds per tier under barretenberg. The default exercises only
-N=1, N=2; enable the rest with `--features aggregation-full-tiers`.
+`pso-zk-canonical` builds from its committed frozen artifacts — **no Noir
+toolchain needed**. `pso-zk-backend` links C++ barretenberg, so it needs a C++
+toolchain (cmake/clang) and network access (noir git deps + first-run SRS).
 
-### Mobile targets
+## Circuit management
 
-`pso-zk-circuit-noir` compiles to per-target `libpso_zk_circuit_noir.{a,so}`
-slices that the Wallet SDK / `pso-integration` UniFFI bindings consume.
-Four targets: iOS device + Apple Silicon simulator, Android arm64-v8a +
-x86_64. The repo's `mise.toml` ships convenience tasks that mirror the
-exact `cargo build` / `cargo ndk` invocations CI runs:
+Recompiling the circuits + refreshing the frozen artifacts (after editing the
+`.nr` sources) is the only step that needs the Noir toolchain:
 
 ```bash
-mise run mobile:setup    # install rust targets + cargo-ndk
-mise run build:mobile    # all four targets
-mise tasks               # see every mobile task individually
+mise run install:zk-toolchain   # nargo + bb at the pinned versions (NOIR_VERSION / BB_VERSION)
+mise run freeze-circuits        # = cargo run -p xtask -- freeze-circuits
 ```
 
-See [`crates/pso-zk-circuit-noir/README.md`](https://github.com/psonet/pso-zk-circuits/blob/main/crates/pso-zk-circuit-noir/README.md)
-for the full mobile-build prerequisites (NDK install, the API-level
-"magic prefix" toolchain wrappers cargo-ndk depends on), raw-`cargo`
-invocations for non-mise users, and how to verify the produced
-artifacts have the correct target metadata stamped.
-
-## Regenerating canonical descriptors
-
-After any change to a Noir circuit source:
-
-```bash
-cargo xtask regenerate-canonical
-```
-
-This recompiles each circuit, derives the canonical UltraHonkKeccak VK
-via the same `noir_rs` FFI the prover uses, and emits the descriptors
-that `pso-zk-canonical` ships. The on-chain `zk_verify` precompile and
-every wallet prover will agree on VK bytes by construction.
-
-See the internal `pso-chain` design docs for the background on why
-we don't shell out to `bb write_vk` anymore.
+`freeze-circuits` recompiles each head circuit, mints a new frozen version for
+any whose ACIR changed (deprecating the superseded one), derives its
+UltraHonkKeccak VK via `bb`, and updates `manifest.toml`. `BB_VERSION` must match
+the `barretenberg-rs` pin in `pso-zk-backend` so freeze-derived VKs match the FFI
+verifier.
 
 ## Verifying releases
 
-Releases tagged from `v0.2.5` onward ship sigstore cosign signatures + SLSA build-provenance attestations for every artifact (the `.crate`, every mobile slice that built successfully, and `SHA256SUMS`). See [SECURITY.md](SECURITY.md) for the threat model and the copy-pasteable verify recipe.
+Releases ship sigstore cosign signatures + SLSA build-provenance attestations for the published `pso-zk-canonical` `.crate`. See [SECURITY.md](SECURITY.md) for the threat model and the copy-pasteable verify recipe.
 
-The mobile build matrix is best-effort (`continue-on-error: true`) — signing tolerates missing slices, so whichever subset built is what gets signed. The `verify-release` CI job hard-fails if any present signature is invalid, but allows missing slices.
-
-Quick check (crate):
+Quick check:
 
 ```sh
-TAG=v0.2.5
+TAG=v0.8.0
 ARTIFACT=pso-zk-canonical-${TAG#v}.crate
 gh release download "$TAG" --repo psonet/pso-zk-circuits \
   --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"
