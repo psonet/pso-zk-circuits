@@ -12,7 +12,7 @@ use pso_protocol::protocol::entity::{Entity, Owned};
 use pso_protocol::protocol::key::{NftSecret, Signer};
 use pso_protocol::protocol::zk::{ProofGenerator, ProofVerifier};
 use pso_protocol::{PsoV1, Suite};
-use pso_zk_backend::barretenberg::Barretenberg;
+use pso_zk_backend::barretenberg::{AsyncProofGenerator, AsyncProofVerifier, Barretenberg};
 use pso_zk_canonical::noir::ownership_proof::OwnershipProof;
 use pso_zk_canonical::ownership::Provable;
 
@@ -79,5 +79,50 @@ fn ownership_prove_verify_round_trip() {
         !ProofVerifier::<PsoV1, OwnershipProof>::verify(&Barretenberg::default(), &wrong, &proof)
             .unwrap(),
         "proof must not verify against a different public input"
+    );
+}
+
+// Same round-trip through the async (`*_async`) seams, driven by a bare
+// `block_on`: exercises the worker's `oneshot` reply over `.await` rather than
+// blocking `recv()`. A no-op runtime is enough — the bb work happens on the
+// `bb-worker` thread, and the future just awaits its reply.
+#[test]
+fn ownership_prove_verify_round_trip_async() {
+    let mut rng = ark_std::test_rng();
+    let (sk, pk) = <PsoV1 as Suite>::Signature::keypair(&mut rng);
+    let nonce = Fr::rand(&mut rng);
+    let owner = PsoV1::derive_owner(&pk, nonce).unwrap();
+    let binding = PsoV1::binding(&[1u8; 20], &[2u8; 32], 7).unwrap();
+    let td = TestNft {
+        id: owner,
+        owner,
+        fields: vec![Fr::from(978u64), Fr::from(100u64)],
+    };
+    let signer = Signer::from_secret(NftSecret::new(sk), nonce).unwrap();
+    let (witness, public) = td
+        .derive_ownership_witness(&mut rng, &signer, binding)
+        .unwrap();
+
+    let bb = Barretenberg::default();
+    let proof = pollster::block_on(
+        AsyncProofGenerator::<PsoV1, OwnershipProof>::generate_async(&bb, &witness, &public),
+    )
+    .expect("bb prove (async)");
+    assert!(
+        pollster::block_on(AsyncProofVerifier::<PsoV1, OwnershipProof>::verify_async(
+            &bb, &public, &proof
+        ))
+        .unwrap(),
+        "valid proof must verify (async)"
+    );
+
+    let mut wrong = public.clone();
+    wrong.binding_hash += Fr::from(1u64);
+    assert!(
+        !pollster::block_on(AsyncProofVerifier::<PsoV1, OwnershipProof>::verify_async(
+            &bb, &wrong, &proof
+        ))
+        .unwrap(),
+        "proof must not verify against a different public input (async)"
     );
 }
