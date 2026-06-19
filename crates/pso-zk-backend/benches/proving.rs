@@ -124,7 +124,7 @@ fn bench_proving(c: &mut Criterion) {
     // bb's CRS is one-shot per process, and this bench proves circuits of many
     // sizes — so pre-size it to the largest (n64 = 2^19 domain under Poseidon2)
     // up front, or the first (smaller) prove would fix the CRS too small for n64.
-    pso_zk_backend::barretenberg::preinit_srs((1 << 19) + 1).expect("preinit SRS");
+    Barretenberg::preinit_srs((1 << 19) + 1).expect("preinit SRS");
 
     // --- ownership ---
     let (td, signer, binding) = sample(&mut rng);
