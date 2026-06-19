@@ -92,10 +92,6 @@ cargo build -p pso-zk-backend --target aarch64-apple-ios-sim        # iOS simula
 cargo ndk -t arm64-v8a -t x86_64 build -p pso-zk-backend --release  # Android (via cargo-ndk + NDK)
 ```
 
-The actual mobile **FFI wrapper** (UniFFI bindings, `.xcframework` / `.so`
-packaging) lives in the downstream wallet integration crate, not here — this
-crate just has to *cross-compile cleanly* so that crate can link it.
-
 ### When you must rebuild barretenberg yourself
 
 You only need to build `libbarretenberg` / `libbb-external.a` from source when:
