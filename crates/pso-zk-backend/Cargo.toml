@@ -28,6 +28,10 @@ barretenberg-rs = { workspace = true }
 reqwest = { workspace = true }
 # Integrity-check the SRS G1 prefix against a pinned hash before trusting it.
 sha2 = { workspace = true }
+# Reply channel for the single bb-worker thread (sync recv + async await).
+oneshot = { workspace = true }
+# block_on for the generic RawVerifier sync blanket (derives sync from async).
+pollster = { workspace = true }
 
 [dev-dependencies]
 # The concrete canonical circuits — only the tests/benches need them; the

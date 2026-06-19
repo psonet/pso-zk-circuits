@@ -19,7 +19,7 @@ use pso_protocol::error::Error;
 
 /// bb's global CRS is **one-shot**: `srs_init_srs` takes effect once per process
 /// and a later call with more points is ignored. So we init exactly once (to
-/// the first circuit's need, or to `preinit_srs`'s size) and remember it.
+/// the first circuit's need, or to `Barretenberg::preinit_srs`'s size) and remember it.
 static SRS_POINTS: OnceLock<u32> = OnceLock::new();
 
 /// The BN254 G2 point of the SRS (fixed; same every time, so not read from the
@@ -47,8 +47,9 @@ const G1_POINT_SIZE: u32 = 64;
 /// a pinned size that mismatches is rejected (tampered CRS); an unpinned size
 /// is allowed through but its hash is reported so an operator can pin it (pin
 /// every size you deploy, or flip the `None` arm in [`verify_g1`] to fail
-/// closed). `(1<<20)+1` is the largest tier (n64) and the [`super::preinit_srs`]
-/// size; its digest is the canonical Aztec `g1.dat` prefix.
+/// closed). `(1<<20)+1` is the largest tier (n64) and the
+/// [`super::Barretenberg::preinit_srs`] size; its digest is the canonical Aztec
+/// `g1.dat` prefix.
 const PINNED_G1_SHA256: &[(u32, [u8; 32])] = &[
     // (1<<16)+1 — ownership circuit + aggregation tiers n1/n2/n4 (same 2^16 domain).
     (
@@ -86,7 +87,7 @@ const PINNED_G1_SHA256: &[(u32, [u8; 32])] = &[
             0xae, 0xb6, 0xad, 0x31,
         ],
     ),
-    // (1<<20)+1 — the largest tier (n64) / `preinit_srs` size.
+    // (1<<20)+1 — the largest tier (n64) / `Barretenberg::preinit_srs` size.
     (
         (1 << 20) + 1,
         [
@@ -221,7 +222,7 @@ fn cache_g1(bytes: &[u8]) {
 /// Initialize bb's global CRS with `num_points` G1 points (local cache, else
 /// network) + the fixed G2 — **once** per process (one-shot). A later request
 /// for ≤ the init'd size is a no-op; a request for *more* errors, since bb
-/// can't grow the CRS — pre-size with [`super::preinit_srs`].
+/// can't grow the CRS — pre-size with [`super::Barretenberg::preinit_srs`].
 pub fn ensure_srs(api: &mut BarretenbergApi<FfiBackend>, num_points: u32) -> Result<(), Error> {
     if let Some(&n) = SRS_POINTS.get() {
         if num_points <= n {
@@ -229,7 +230,7 @@ pub fn ensure_srs(api: &mut BarretenbergApi<FfiBackend>, num_points: u32) -> Res
         }
         return Err(Error::Proof(format!(
             "bb SRS already initialized to {n} points (one-shot) but this circuit needs \
-             {num_points}; call preinit_srs(max) with the largest circuit's size first"
+             {num_points}; call Barretenberg::preinit_srs(max) with the largest circuit's size first"
         )));
     }
     let (g1, from_net) = match local_g1(num_points) {

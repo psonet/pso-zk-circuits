@@ -164,9 +164,7 @@ jobs:
 
   # --------------------------------------------------------------
   # Version bump + tag. Only on push:main, only after `check` is
-  # green. Independent of the mobile build jobs — those are
-  # best-effort and shouldn't block release cuts on barretenberg-rs
-  # cross-toolchain regressions.
+  # green.
   # --------------------------------------------------------------
   tag:
     name: Bump version & tag
@@ -205,17 +203,14 @@ jobs:
   # --------------------------------------------------------------
   # crates.io publish. Fires after `tag` produces a fresh tag, OR
   # when re-releasing an existing tag via workflow_dispatch /
-  # tag-push. Publishes the workspace's library crates in dep
-  # order: `pso-zk-canonical` first (no internal deps), then
-  # `pso-zk-circuit-noir` (depends on pso-zk-canonical).
+  # tag-push. Publishes only `pso-zk-canonical` — the no-toolchain
+  # crate that builds from committed frozen artifacts. `pso-zk-backend`
+  # is `publish = false` (pulls the noir toolchain via git refs
+  # crates.io can't resolve) and is skipped.
   #
-  # `xtask` is `publish = false` and is skipped.
-  #
-  # `continue-on-error: true` so transient flakes (e.g. crates.io
-  # index latency between the two publish calls, or a missing
-  # upstream registry dep on first run) don't block the GitHub
-  # release — the mobile artifacts still ship even if crates.io
-  # rejects the publish.
+  # `continue-on-error: true` so a transient crates.io flake (e.g.
+  # index latency or a missing upstream registry dep on first run)
+  # doesn't block the GitHub release.
   # --------------------------------------------------------------
   publish-crates-io:
     name: Publish to crates.io
@@ -266,9 +261,8 @@ jobs:
   # --------------------------------------------------------------
   # Release. Gated on `tag.outputs.tag != ''` (cog bumped on main
   # push) OR `resolve.outputs.release_tag != ''` (manual tag push /
-  # workflow_dispatch). Downloads every artifact produced by the
-  # mobile build jobs (whichever succeeded) and attaches them all
-  # to the release.
+  # workflow_dispatch). Attaches the published `pso-zk-canonical`
+  # .crate plus its SHA256SUMS / cosign signatures to the release.
   # --------------------------------------------------------------
   github-release:
     name: Create GitHub release
@@ -326,10 +320,8 @@ jobs:
         if: steps.stage.outputs.has_artifacts == 'true'
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # pin-target: v3
 
-      # Matrix-aware signing: signs whichever subset of mobile slices +
-      # the .crate + SHA256SUMS made it into release/. continue-on-error
-      # on the cross-build matrix legs means we sign what we have, not
-      # what we expected to have. Skips any pre-existing .sig/.pem.
+      # Signs whatever made it into release/ (the .crate + SHA256SUMS).
+      # Skips any pre-existing .sig/.pem.
       - name: Sign release artifacts (cosign keyless)
         if: steps.stage.outputs.has_artifacts == 'true'
         run: |
@@ -347,17 +339,13 @@ jobs:
           ls -la
 
       # SLSA build provenance for every artifact in release/ (except
-      # sigs/certs). Glob expansion picks up whichever mobile slices
-      # built successfully — missing slices contribute zero subjects.
+      # sigs/certs).
       - name: Generate SLSA build provenance
         if: steps.stage.outputs.has_artifacts == 'true'
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # pin-target: v2
         with:
           subject-path: |
             release/*.crate
-            release/*.a
-            release/*.so
-            release/*.zip
             release/SHA256SUMS
 
       - name: Compose release body
@@ -376,26 +364,6 @@ jobs:
             echo "### crates.io"
             echo
             echo "- \`pso-zk-canonical-${TAG#v}.crate\` — byte-identical to the crates.io upload."
-            echo
-            echo "### Mobile slices"
-            echo
-            echo "Pre-built \`libpso_zk_circuit_noir\` for iOS + Android targets."
-            echo "Whichever cross-toolchain targets succeeded on this run are"
-            echo "attached below; missing slices indicate a barretenberg-rs"
-            echo "cross-build failure on that target (see workflow logs)."
-            echo
-            echo "#### iOS"
-            echo
-            echo "- \`libpso_zk_circuit_noir.a\` — per-target static lib"
-            echo "  (\`aarch64-apple-ios\`, \`aarch64-apple-ios-sim\`,"
-            echo "  \`x86_64-apple-ios-sim\`)"
-            echo "- \`libpso_zk_circuit_noir.xcframework.zip\` — combined"
-            echo "  xcframework for SwiftPM / Xcode integration"
-            echo
-            echo "#### Android"
-            echo
-            echo "- \`libpso_zk_circuit_noir.so\` — per-ABI shared lib"
-            echo "  (\`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`, \`x86\`)"
             echo
             echo "### Verification"
             echo

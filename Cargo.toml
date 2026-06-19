@@ -33,6 +33,14 @@ tiny-keccak   = { version = "2", features = ["keccak"] }
 toml          = "0.8"
 toml_edit     = "0.22"
 criterion     = { version = "0.5", default-features = false }
+# Single-producer reply channel for the bb-worker: its Receiver is both
+# blockable (`recv()`, sync callers) and awaitable (`async` feature, async
+# callers), so the backend stays runtime-agnostic (no tokio dependency).
+oneshot       = { version = "0.1", default-features = false, features = ["std", "async"] }
+# Minimal current-thread block_on: the generic `RawVerifier` blanket (which
+# can't name the async trait's future to call `BbReply::recv`) uses it to derive
+# the sync seam from the async one. Not an async runtime — just a poll loop.
+pollster      = "0.4"
 
 # Dev / testing: opt-level 3 keeps Noir proving times sane (debug
 # proving is otherwise extremely slow).
