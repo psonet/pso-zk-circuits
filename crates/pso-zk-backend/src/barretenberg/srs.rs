@@ -22,6 +22,22 @@ use pso_protocol::error::Error;
 /// the first circuit's need, or to `preinit_srs`'s size) and remember it.
 static SRS_POINTS: OnceLock<u32> = OnceLock::new();
 
+/// Explicit path to a BN254 G1 SRS `.dat`, set by the embedding application
+/// (e.g. a mobile wallet pointing at a bundled SRS asset). Consulted *before*
+/// `$BB_CRS_PATH` / `~/.bb-crs` by [`local_g1_path`]. Set once; later sets are
+/// ignored. When built without `with-network-srs` this is the only way to
+/// provide the SRS — there is no network fallback.
+static SRS_PATH_OVERRIDE: OnceLock<std::path::PathBuf> = OnceLock::new();
+
+/// Point the SRS loader at an explicit G1 `.dat` file. The embedding app calls
+/// this **once, before any proof** (e.g. with a bundled SRS asset path) so
+/// [`ensure_srs`] reads locally instead of downloading. Required when built
+/// without `with-network-srs`; optional otherwise (it just overrides the cache
+/// location).
+pub fn set_srs_path(path: std::path::PathBuf) {
+    let _ = SRS_PATH_OVERRIDE.set(path);
+}
+
 /// The BN254 G2 point of the SRS (fixed; same every time, so not read from the
 /// G1 `.dat`). Matches the reference / Aztec CRS `g2.dat`.
 const G2: [u8; 128] = [
@@ -131,7 +147,8 @@ fn verify_g1(num_points: u32, bytes: &[u8]) -> Result<(), Error> {
     }
 }
 
-/// The Aztec CRS G1 endpoint (range-served).
+/// The Aztec CRS G1 endpoint (range-served). Only with `with-network-srs`.
+#[cfg(feature = "with-network-srs")]
 const AZTEC_CRS_G1: &str = "https://crs.aztec.network/g1.dat";
 
 /// Next power of two `>= circuit_size` (the SRS subgroup size).
@@ -140,9 +157,13 @@ fn compute_subgroup_size(circuit_size: u32) -> u32 {
     2u32.pow(log_value)
 }
 
-/// Path to a locally cached BN254 G1 SRS: `$BB_CRS_PATH`, else
-/// `~/.bb-crs/bn254_g1.dat` (the file `bb` downloads/caches).
+/// Path to a locally available BN254 G1 SRS: the [`set_srs_path`] override if
+/// set, else `$BB_CRS_PATH`, else `~/.bb-crs/bn254_g1.dat` (the file `bb`
+/// downloads/caches).
 fn local_g1_path() -> std::path::PathBuf {
+    if let Some(p) = SRS_PATH_OVERRIDE.get() {
+        return p.clone();
+    }
     if let Ok(p) = std::env::var("BB_CRS_PATH") {
         return p.into();
     }
@@ -194,6 +215,11 @@ fn local_g1(num_points: u32) -> Result<Vec<u8>, Error> {
 /// local cache is available). Does **not** touch the cache — the caller writes
 /// it through [`cache_g1`] only *after* the bytes pass [`verify_g1`], so an
 /// unverified/tampered download can never poison the on-disk cache.
+///
+/// Only with `with-network-srs` (off for mobile): an on-device prover must never
+/// fetch the trusted setup at proving time — `reqwest::blocking` also panics on
+/// the mobile event loop. The SRS is provided via [`set_srs_path`] instead.
+#[cfg(feature = "with-network-srs")]
 fn net_g1(num_points: u32) -> Result<Vec<u8>, Error> {
     let g1_end = num_points * G1_POINT_SIZE - 1;
     let resp = reqwest::blocking::Client::new()
@@ -210,6 +236,8 @@ fn net_g1(num_points: u32) -> Result<Vec<u8>, Error> {
 
 /// Best-effort write-through of verified G1 bytes to the local cache, so the
 /// next call — and any smaller circuit — reads locally instead of re-downloading.
+/// Only with `with-network-srs` (nothing is ever downloaded to cache otherwise).
+#[cfg(feature = "with-network-srs")]
 fn cache_g1(bytes: &[u8]) {
     let path = local_g1_path();
     if let Some(parent) = path.parent() {
@@ -232,17 +260,35 @@ pub fn ensure_srs(api: &mut BarretenbergApi<FfiBackend>, num_points: u32) -> Res
              {num_points}; call preinit_srs(max) with the largest circuit's size first"
         )));
     }
-    let (g1, from_net) = match local_g1(num_points) {
-        Ok(g1) => (g1, false),
-        Err(_) => (net_g1(num_points)?, true),
+    // Source the G1 prefix: local first (the set_srs_path override / cache),
+    // else the network — except without `with-network-srs`, where a missing local
+    // SRS is a hard error (no download). Integrity-check the bytes (whether
+    // local or downloaded) before bb trusts them, and before persisting a fresh
+    // download so a tampered fetch can't poison the cache for later runs.
+    let g1 = match local_g1(num_points) {
+        Ok(g1) => {
+            verify_g1(num_points, &g1)?;
+            g1
+        }
+        Err(_local_err) => {
+            #[cfg(not(feature = "with-network-srs"))]
+            {
+                return Err(Error::Proof(format!(
+                    "SRS not available at {} ({_local_err}); the network fallback is disabled \
+                     (built without `with-network-srs`). Initialize the wallet with a bundled \
+                     SRS file via set_srs_path() before proving.",
+                    local_g1_path().display()
+                )));
+            }
+            #[cfg(feature = "with-network-srs")]
+            {
+                let g1 = net_g1(num_points)?;
+                verify_g1(num_points, &g1)?;
+                cache_g1(&g1);
+                g1
+            }
+        }
     };
-    // Integrity-check the bytes (cached or downloaded) before bb trusts them —
-    // and before persisting a fresh download, so a tampered fetch can't poison
-    // the cache for later runs.
-    verify_g1(num_points, &g1)?;
-    if from_net {
-        cache_g1(&g1);
-    }
     api.srs_init_srs(&g1, num_points, &G2)
         .map_err(|e| Error::Proof(format!("srs init: {e}")))?;
     let _ = SRS_POINTS.set(num_points);

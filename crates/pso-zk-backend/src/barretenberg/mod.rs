@@ -33,6 +33,12 @@ use crate::witness;
 
 mod srs;
 
+/// Point the SRS loader at an explicit G1 `.dat` (e.g. a mobile wallet's bundled
+/// SRS asset). Call once before proving; required when built without
+/// `with-network-srs` (there is no network fallback then). See
+/// [`srs::set_srs_path`].
+pub use srs::set_srs_path;
+
 /// Barretenberg's CRS factory, low-memory globals, and prover are **process-
 /// global** C++ state, and the API is not reentrant — so every bb operation
 /// (SRS init through prove/verify) must be serialized. This lock makes the
