@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.10.0 - 2026-06-22
+#### Features
+- (**srs**) gate network SRS behind default 'with-network-srs' + add set_srs_path - (b544fe2) - Anton Velichko
+
+- - -
+
 ## v0.9.0 - 2026-06-19
 #### Features
 - (**zk-backend**) add RawVerifier for circuit-agnostic UltraHonkKeccak verify - (9784149) - Anton Velichko
