@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.11.0 - 2026-06-23
+#### Features
+- bump pso-protocol 0.8 -> 0.9 (canonical sorted-set entity hash) - (ea29ad1) - Anton Velichko
+#### Miscellaneous Chores
+- (**deps**) cargo update crypto-bigint 0.7.3 -> 0.7.5 (off yanked) - (5874fee) - Anton Velichko
+
+- - -
+
 ## v0.10.0 - 2026-06-22
 #### Features
 - (**srs**) gate network SRS behind default 'with-network-srs' + add set_srs_path - (b544fe2) - Anton Velichko
