@@ -16,7 +16,7 @@ resolver = "2"
 # `{ workspace = true }`. The noir git deps (acir / acvm / bn254_blackbox_solver)
 # are NOT here — they stay inline in `pso-zk-backend` with their `tag = ...`.
 [workspace.dependencies]
-pso-protocol  = "0.8"
+pso-protocol  = "0.9"
 ark-ff        = { version = "0.6", default-features = false }
 ark-bn254     = { version = "0.6", default-features = false, features = ["curve"] }
 ark-std       = { version = "0.6", default-features = false }

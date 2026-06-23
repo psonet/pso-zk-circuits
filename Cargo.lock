@@ -1857,9 +1857,9 @@ dependencies = [
 
 [[package]]
 name = "pso-protocol"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f11909b7a51d6db1e7abc2f5b973c966bafa9e538614d72a48d44159fadf3fa5"
+checksum = "18b7c0567525e35a0e35210d705fc5d07a8dfda71924a72e0737f25316575db2"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1877,7 +1877,7 @@ dependencies = [
 
 [[package]]
 name = "pso-zk-backend"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "acir",
  "acvm",
@@ -1897,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "pso-zk-canonical"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ark-bn254",
  "ark-ff",
