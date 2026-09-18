@@ -49,6 +49,10 @@ depends = ["install:noir", "install:bb"]
 description = "Recompile circuits + refresh frozen artifacts: cargo run -p xtask -- freeze-circuits"
 run = "cargo run -p xtask -- freeze-circuits"
 
+[tasks."freeze-circuits:check"]
+description = "Dry run: assert every committed active artifact re-derives from its own sources, writing nothing outside target/ (the freeze-check CI job)"
+run = "cargo run -p xtask -- freeze-circuits --check"
+
 [tasks."freeze-circuits:abi-change"]
 description = "freeze-circuits minting a new circuit version on an ABI change (--abi-change)"
 run = "cargo run -p xtask -- freeze-circuits --abi-change"

@@ -16,12 +16,23 @@
 //! is a patch bump; an ABI change requires `--abi-change` (minor) or `--semantic`
 //! (major) so the layout/DOMAIN decision is explicit. `cargo build` never runs
 //! this — it reads the frozen artifacts read-only.
+//!
+//! `freeze-circuits --check` is the dry run CI gates on. It does the same
+//! compile and the same key derivation, against a scratch copy of the whole
+//! `noir/` tree under `target/`, and asserts every committed `active` artifact
+//! reproduces byte for byte. It writes nothing outside `target/`, reports every
+//! failing module rather than stopping at the first, and exits 1 if any differ.
+//! Without it nothing proves the committed verifying keys still come from the
+//! committed sources.
 
 // `xtask` is a CLI binary; stdout/stderr is its interface.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+mod scratch;
+mod toolchain;
 
 use base64::Engine;
 use tiny_keccak::{Hasher, Keccak};
@@ -63,15 +74,19 @@ fn freeze(flags: &[String]) {
     // typo must not silently become a write.
     if let Some(unknown) = flags
         .iter()
-        .find(|f| !matches!(f.as_str(), "--semantic" | "--abi-change"))
+        .find(|f| !matches!(f.as_str(), "--semantic" | "--abi-change" | "--check"))
     {
         eprintln!("unknown flag {unknown:?}");
-        eprintln!("usage: cargo xtask freeze-circuits [--abi-change | --semantic]");
-        eprintln!("note: there is no --check; freeze-circuits always writes.");
+        eprintln!("usage: cargo xtask freeze-circuits [--check | --abi-change | --semantic]");
         std::process::exit(2);
     }
+    let check = flags.iter().any(|f| f == "--check");
     let semantic = flags.iter().any(|f| f == "--semantic");
     let abi_change = flags.iter().any(|f| f == "--abi-change");
+    if check && (semantic || abi_change) {
+        eprintln!("--check is a dry run and mints nothing, so a bump flag with it is a mistake");
+        std::process::exit(2);
+    }
 
     let root = workspace_root();
     // `crates/`, not the repo root: the canonical crate moved under it and this
@@ -82,8 +97,21 @@ fn freeze(flags: &[String]) {
     let resources = canonical.join("resources/circuits");
     let manifest_path = canonical.join("circuits/manifest.toml");
 
-    let nargo = locate("NARGO", ".nargo/bin/nargo", "nargo").expect("nargo not found (set $NARGO)");
-    let bb = locate("BB", ".bb/bb", "bb").expect("bb not found (set $BB)");
+    // Before any compile: the artifacts are a function of these two binaries as
+    // much as of the sources, so a drift here is not a source change and should
+    // not be reported as one.
+    let (nargo, bb) = match toolchain::assert_pinned(&root) {
+        Ok(pair) => pair,
+        Err(why) => {
+            eprintln!("{why}");
+            std::process::exit(2);
+        }
+    };
+
+    if check {
+        check_circuits(&noir, &resources, &manifest_path, &root, &nargo, &bb);
+        return;
+    }
 
     let mut doc: DocumentMut = std::fs::read_to_string(&manifest_path)
         .expect("read manifest.toml")
@@ -334,24 +362,139 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Locate a tool via `$ENV`, then `$HOME/<home_rel>`, then PATH.
-fn locate(env_var: &str, home_rel: &str, bin: &str) -> Option<PathBuf> {
-    if let Ok(p) = std::env::var(env_var) {
-        let p = PathBuf::from(p);
-        if p.exists() {
-            return Some(p);
+fn check_circuits(
+    noir: &Path,
+    resources: &Path,
+    manifest_path: &Path,
+    root: &Path,
+    nargo: &Path,
+    bb: &Path,
+) {
+    let doc: DocumentMut = std::fs::read_to_string(manifest_path)
+        .expect("read manifest.toml")
+        .parse()
+        .expect("parse manifest.toml");
+    let entries = doc["circuit"]
+        .as_array_of_tables()
+        .expect("[[circuit]] array");
+
+    // Compile the copy, never the tree. `nargo compile` writes `target/` beside
+    // the sources, which on the real tree would dirty the checkout that CI then
+    // asserts is clean.
+    let scratch = scratch::Scratch::copy_of(noir, &root.join("target"), "freeze-check")
+        .unwrap_or_else(|e| panic!("{e}"));
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut checked = 0usize;
+
+    for (dir, module) in CIRCUITS {
+        let Some(version) = (0..entries.len()).find_map(|i| {
+            let t = entries.get(i).unwrap();
+            (t["module"].as_str() == Some(*module) && t["status"].as_str() == Some("active"))
+                .then(|| t["version"].as_str().unwrap().to_string())
+        }) else {
+            // No active entry: nothing is committed to reproduce. A circuit
+            // that exists only as source is not yet part of the contract.
+            println!("  skipped    {module}  (no active version)");
+            continue;
+        };
+
+        let pkg = scratch.path().join(dir);
+        let st = Command::new(nargo)
+            .arg("compile")
+            .current_dir(&pkg)
+            .status()
+            .unwrap_or_else(|e| panic!("spawn nargo for {dir}: {e}"));
+        if !st.success() {
+            failures.push(format!("{module}: nargo compile failed"));
+            continue;
+        }
+
+        let json_path = pkg.join("target").join(format!("{module}.json"));
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json_path).expect("read circuit json"))
+                .expect("parse circuit json");
+        let bytecode = json["bytecode"].as_str().expect("bytecode");
+
+        let committed = resources.join(module).join(&version);
+        let mut module_failed = false;
+
+        // 1. ACIR. Compared by keccak of the decoded bytes, which is the
+        //    identity the chain matches on, not by the base64 spelling.
+        let acir = base64::engine::general_purpose::STANDARD
+            .decode(bytecode)
+            .expect("base64");
+        let want_b64 = std::fs::read_to_string(committed.join("bytecode.b64"))
+            .expect("committed bytecode.b64");
+        let want_acir = base64::engine::general_purpose::STANDARD
+            .decode(want_b64.trim())
+            .expect("committed base64");
+        if keccak_hex(&acir) != keccak_hex(&want_acir) {
+            failures.push(format!(
+                "{module} @ {version}: ACIR differs (committed {}, compiled {})",
+                keccak_hex(&want_acir),
+                keccak_hex(&acir)
+            ));
+            module_failed = true;
+        }
+
+        // 2. ABI, structurally. A string compare false-positives on serializer
+        //    differences that change no meaning.
+        let want_abi: Option<serde_json::Value> =
+            std::fs::read_to_string(committed.join("abi.json"))
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok());
+        if want_abi.as_ref() != Some(&json["abi"]) {
+            failures.push(format!("{module} @ {version}: ABI differs"));
+            module_failed = true;
+        }
+
+        // 3. The verifying key. Derived into the scratch tree, never beside the
+        //    committed artifact. This is the one a verifier actually loads, so
+        //    a match on ACIR alone is not enough — it would miss a bb change.
+        let vk_out = pkg.join(".bb-check");
+        std::fs::create_dir_all(&vk_out).expect("mkdir vk scratch");
+        let st = Command::new(bb)
+            .arg("write_vk")
+            .arg("-b")
+            .arg(&json_path)
+            .arg("-o")
+            .arg(&vk_out)
+            .args(["-t", "evm-no-zk"])
+            .status()
+            .unwrap_or_else(|e| panic!("spawn bb for {module}: {e}"));
+        if !st.success() {
+            failures.push(format!("{module}: bb write_vk failed"));
+            continue;
+        }
+        let produced = std::fs::read(vk_out.join("vk")).expect("read derived vk");
+        let want_vk = std::fs::read(committed.join("circuit.vk")).expect("committed circuit.vk");
+        if produced != want_vk {
+            failures.push(format!(
+                "{module} @ {version}: circuit.vk differs ({} vs {} bytes)",
+                want_vk.len(),
+                produced.len()
+            ));
+            module_failed = true;
+        }
+
+        checked += 1;
+        if !module_failed {
+            println!("  reproduces {module} @ {version}");
         }
     }
-    if let Ok(home) = std::env::var("HOME") {
-        let p = Path::new(&home).join(home_rel);
-        if p.exists() {
-            return Some(p);
-        }
+
+    if failures.is_empty() {
+        println!("\n{checked} circuit(s) reproduce from their committed sources.");
+        return;
     }
-    Command::new(bin)
-        .arg("--version")
-        .status()
-        .ok()
-        .filter(|s| s.success())
-        .map(|_| PathBuf::from(bin))
+    eprintln!("\n{} circuit(s) did NOT reproduce:", failures.len());
+    for f in &failures {
+        eprintln!("  {f}");
+    }
+    eprintln!(
+        "\nEither the sources moved without a freeze (run `cargo xtask freeze-circuits`),\n\
+         or the toolchain is not the one that produced the committed artifacts."
+    );
+    std::process::exit(1);
 }

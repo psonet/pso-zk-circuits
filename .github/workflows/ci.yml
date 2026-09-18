@@ -104,6 +104,96 @@ jobs:
         run: cargo deny check all
 
   # --------------------------------------------------------------
+  # Which parts of the tree moved. The freeze check installs the Noir
+  # toolchain and derives nine verifying keys, so it is gated on the
+  # inputs that can actually change a key: the .nr sources, the frozen
+  # artifacts, the manifest, the toolchain pins, and xtask itself.
+  # Always runs on a push to main, where "nothing relevant changed" is
+  # not a risk worth taking.
+  # --------------------------------------------------------------
+  changes:
+    name: path filter
+    runs-on: ubuntu-latest
+    outputs:
+      circuits: ${{ steps.filter.outputs.circuits }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            circuits:
+              - 'crates/pso-zk-canonical/noir/**'
+              - 'crates/pso-zk-canonical/resources/circuits/**'
+              - 'crates/pso-zk-canonical/circuits/manifest.toml'
+              - 'xtask/**'
+              - 'mise.toml'
+
+  # --------------------------------------------------------------
+  # The reproduction gate: every committed `active` artifact must come
+  # back byte-identical from its own sources under the pinned toolchain.
+  # This is what makes the frozen registry a claim anyone can re-derive
+  # rather than a set of files someone once generated.
+  #
+  # The dry run compiles a scratch copy under target/, so the checkout
+  # must be untouched afterwards — asserted below, because an xtask bug
+  # that wrote into the tree would otherwise pass silently.
+  # --------------------------------------------------------------
+  freeze-check:
+    name: freeze check
+    runs-on: ubuntu-latest
+    needs: [resolve, changes]
+    if: |
+      needs.resolve.outputs.release_tag == '' &&
+      (needs.changes.outputs.circuits == 'true' ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - uses: jdx/mise-action@v4
+        with:
+          install: false
+
+      # nargo and bb come from noirup/bbup at the mise.toml pins. Reusing the
+      # repo's own task rather than repeating the installer here keeps one
+      # source of truth; xtask then re-asserts both versions before compiling,
+      # so a drift fails fast and by name rather than as a key mismatch at the
+      # end. Restored from cache when the pins have not moved.
+      - name: Cache the Noir toolchain
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nargo
+            ~/.bb
+          key: noir-toolchain-${{ hashFiles('mise.toml') }}
+
+      - name: Install nargo + bb at the pinned versions
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: mise run install:zk-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: freeze-check
+
+      # The Aztec CRS is large and identical between runs. Keyed on mise.toml
+      # because a bb bump is the thing that can invalidate it. Path per
+      # `barretenberg::srs::local_g1_path`.
+      - name: Cache the bb CRS
+        uses: actions/cache@v4
+        with:
+          path: ~/.bb-crs
+          key: bb-crs-${{ hashFiles('mise.toml') }}
+
+      - name: cargo xtask freeze-circuits --check
+        run: cargo xtask freeze-circuits --check
+
+      - name: the dry run wrote nothing
+        run: git diff --exit-code
+
+  # --------------------------------------------------------------
   # Format + clippy + cargo test on stable & beta. Runs on PR +
   # push:main; skipped on tag-push / workflow_dispatch release
   # paths because the underlying main commit already ran them
@@ -170,7 +260,11 @@ jobs:
   tag:
     name: Bump version & tag
     runs-on: ubuntu-latest
-    needs: [resolve, check]
+    # freeze-check too: cutting a tag whose committed keys do not re-derive
+    # would publish a registry nobody can reproduce, which is the one failure
+    # this repository exists to prevent. It always runs on a push to main, so
+    # it can never be skipped out from under this.
+    needs: [resolve, check, freeze-check]
     if: needs.resolve.outputs.release_tag == '' && github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(version):') && !contains(github.event.head_commit.message, '[skip ci]')
     outputs:
       tag: ${{ steps.bump.outputs.tag }}
