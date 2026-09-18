@@ -13,8 +13,15 @@ generate_mono_repository_global_tag = false
 # Without this hook cog would tag the release but the workspace
 # crates would still report the old version through CARGO_PKG_VERSION
 # — drift between the tag and the artifact's self-reported version.
+# The sed rewrites the workspace version; `cargo update --workspace` then moves
+# the members' entries in Cargo.lock to match. Both, because this repo commits
+# Cargo.lock: the sed alone left main at Cargo.toml 0.12.0 against Cargo.lock
+# 0.11.0, so every build rewrote the lock and any job asserting a clean tree
+# failed. `--workspace` touches only the local packages, never the dependency
+# graph, so a release cannot quietly pick up new upstream versions.
 pre_bump_hooks = [
     "sed -i '0,/^version/{s/^version.*/version = \"{{version}}\"/}' Cargo.toml",
+    "cargo update --workspace",
 ]
 
 # After cog bumps the version + writes the tag, push both back to
