@@ -73,7 +73,9 @@ Releases ship sigstore cosign signatures + SLSA build-provenance attestations fo
 Quick check:
 
 ```sh
-TAG=v0.11.0
+# The newest release, so this recipe does not go stale at the next one.
+# Pin a literal tag instead if you are verifying a specific release.
+TAG=$(gh release view --repo psonet/pso-zk-circuits --json tagName -q .tagName)
 ARTIFACT=pso-zk-canonical-${TAG#v}.crate
 gh release download "$TAG" --repo psonet/pso-zk-circuits \
   --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"

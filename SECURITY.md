@@ -67,7 +67,9 @@ You need [cosign](https://docs.sigstore.dev/cosign/installation/) and [`gh`](htt
 
 ```sh
 REPO=psonet/pso-zk-circuits
-TAG=v0.11.0  # or any release ≥ the cutoff
+# The newest release. Substitute a literal tag to verify a specific one;
+# any release from v0.2.5 onward is signed.
+TAG=$(gh release view --repo "$REPO" --json tagName -q .tagName)
 
 # Crate verification.
 ARTIFACT=pso-zk-canonical-${TAG#v}.crate
