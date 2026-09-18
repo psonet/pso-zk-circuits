@@ -21,6 +21,9 @@ BB_VERSION = "5.0.0-nightly.20260522"
 # ---------------------------------------------------------------
 [tasks."install:noir"]
 description = "Install nargo $NOIR_VERSION via noirup → ~/.nargo/bin"
+# `sh` on Ubuntu is dash and has no `set -o pipefail`, which mise's default
+# shell would hit; these scripts pipe curl into bash, so pipefail is the point.
+shell = "bash -c"
 run = '''
 set -euo pipefail
 [ -x "$HOME/.nargo/bin/noirup" ] || curl -fsSL https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
@@ -29,6 +32,7 @@ set -euo pipefail
 
 [tasks."install:bb"]
 description = "Install Barretenberg bb $BB_VERSION via bbup → ~/.bb (must match barretenberg-rs)"
+shell = "bash -c"
 run = '''
 set -euo pipefail
 [ -x "$HOME/.bb/bbup" ] || curl -fsSL https://raw.githubusercontent.com/AztecProtocol/aztec-packages/master/barretenberg/bbup/install | bash
@@ -62,6 +66,7 @@ run = "cargo run -p xtask -- freeze-circuits --abi-change"
 # ---------------------------------------------------------------
 [tasks.check]
 description = "fmt + clippy + test across the workspace (mirrors CI)"
+shell = "bash -c"
 run = '''
 set -euo pipefail
 cargo fmt --all -- --check
