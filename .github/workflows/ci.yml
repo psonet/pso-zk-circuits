@@ -205,17 +205,18 @@ jobs:
   # --------------------------------------------------------------
   # crates.io publish. Fires after `tag` produces a fresh tag, OR
   # when re-releasing an existing tag via workflow_dispatch /
-  # tag-push. Publishes the workspace's library crates in dep
-  # order: `pso-zk-canonical` first (no internal deps), then
-  # `pso-zk-circuit-noir` (depends on pso-zk-canonical).
+  # tag-push. Publishes one crate: `pso-zk-canonical`.
   #
-  # `xtask` is `publish = false` and is skipped.
+  # `xtask` and `pso-zk-backend` are both `publish = false` and are
+  # skipped — the backend pulls the noir toolchain over git refs that
+  # crates.io cannot resolve.
   #
-  # `continue-on-error: true` so transient flakes (e.g. crates.io
-  # index latency between the two publish calls, or a missing
-  # upstream registry dep on first run) don't block the GitHub
-  # release — the mobile artifacts still ship even if crates.io
-  # rejects the publish.
+  # `continue-on-error: true` so a transient flake (crates.io index
+  # latency, or a missing upstream registry dep on first run) doesn't
+  # block the GitHub release — the other artifacts still ship even if
+  # crates.io rejects the publish. Note this also swallows a failure of
+  # the patch guard below, which is why that guard runs before the
+  # publish step rather than gating the job.
   # --------------------------------------------------------------
   publish-crates-io:
     name: Publish to crates.io
@@ -234,6 +235,24 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: cargo
+
+      # A `[patch.*]` section is a development-only redirect: `cargo publish`
+      # strips it, and `--no-verify` below skips the build that would notice.
+      # Publishing under one ships a crate whose green CI proved something
+      # about a patched graph and nothing about the graph users get — the
+      # requirement in Cargo.toml resolves to whatever is on the registry,
+      # which is the version the patch existed to avoid. Fail loudly instead;
+      # the fix is to bump the requirement and delete the patch before tagging.
+      - name: Refuse to publish under a dependency patch
+        run: |
+          set -euo pipefail
+          if grep -q '^\[patch\.' Cargo.toml; then
+            echo "::error::Cargo.toml still has a [patch.*] section. Bump the real"
+            echo "::error::version requirement and delete the patch, then re-tag."
+            grep -n '^\[patch\.' -A3 Cargo.toml
+            exit 1
+          fi
+          echo "no dependency patches; safe to publish"
 
       # Only `pso-zk-canonical` ships to crates.io. `pso-zk-backend`
       # is `publish = false` — it pulls the noir toolchain via git refs that

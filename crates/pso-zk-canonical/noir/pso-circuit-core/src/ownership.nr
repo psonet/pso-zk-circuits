@@ -133,8 +133,8 @@ pub fn verify_ownership_per_su(
     //     nonce, binding_hash).to_be_bytes(). The pre-hash binds the
     //     proof to the NFT data, the per-NFT nonce, AND the submission
     //     binding; a replay across NFTs *or* across a different
-    //     (sender, tdId, chainId) produces a different pre-hash and
-    //     fails verification.
+    //     (sender, tdId, hostChainId, l2ChainId) produces a different
+    //     pre-hash and fails verification.
     let pre_hash_fr: Field = hash2::hash_3([nft_hash, nonce, binding_hash]);
     let pre_hash_bytes: [u8; 32] = pre_hash_fr.to_be_bytes();
 
