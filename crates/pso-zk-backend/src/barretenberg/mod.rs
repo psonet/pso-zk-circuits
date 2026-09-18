@@ -245,9 +245,11 @@ impl RawVerifier for Barretenberg {
         // `as_chunks::<32>()` over `chunks_exact(32)`: the width is a constant,
         // so the compiler gets `[u8; 32]` and the remainder is separated at the
         // type level. `.0` is the whole chunks; the tail is empty by the length
-        // checks above and below.
-        let public_inputs: Vec<Vec<u8>> =
-            pub_bytes.as_chunks::<32>().0.iter().map(|w| w.to_vec()).collect();
+        // checks above and below. Bound to a local because the one-line chain
+        // sits right on rustfmt's width and two toolchain versions disagree
+        // about where to break it.
+        let pub_words = pub_bytes.as_chunks::<32>().0;
+        let public_inputs: Vec<Vec<u8>> = pub_words.iter().map(|w| w.to_vec()).collect();
 
         // Remainder is the proof, as 32-byte field words.
         let proof_bytes = &combined_proof[pub_end..];
@@ -256,12 +258,8 @@ impl RawVerifier for Barretenberg {
                 "combined proof: proof section not a multiple of 32 bytes".into(),
             ));
         }
-        let proof: Vec<Vec<u8>> = proof_bytes
-            .as_chunks::<32>()
-            .0
-            .iter()
-            .map(|w| w.to_vec())
-            .collect();
+        let proof_words = proof_bytes.as_chunks::<32>().0;
+        let proof: Vec<Vec<u8>> = proof_words.iter().map(|w| w.to_vec()).collect();
 
         let settings = settings_ultra_honk_keccak(self.disable_zk);
 
