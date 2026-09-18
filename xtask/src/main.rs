@@ -57,7 +57,10 @@ fn freeze(flags: &[String]) {
     let abi_change = flags.iter().any(|f| f == "--abi-change");
 
     let root = workspace_root();
-    let canonical = root.join("pso-zk-canonical");
+    // `crates/`, not the repo root: the canonical crate moved under it and this
+    // path did not follow, so every freeze command panicked on a missing
+    // manifest. Nothing caught it because no CI job runs xtask.
+    let canonical = root.join("crates").join("pso-zk-canonical");
     let noir = canonical.join("noir");
     let resources = canonical.join("resources/circuits");
     let manifest_path = canonical.join("circuits/manifest.toml");
