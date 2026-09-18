@@ -16,8 +16,9 @@
 // entity hash reconstructed via `pso_protocol::nft::compute_*_hash`.
 // The trailing `binding_hash` is shared by every slot and recomputed
 // on-chain via precompile `0x0210` from `msg.sender`,
-// `tributeDraftId`, and `block.chainid` -- it makes the aggregation
-// proof non-replayable across callers, tribute drafts, and chains.
+// `tributeDraftId`, the host chain id and the L2 chain id -- it makes the
+// aggregation proof non-replayable across callers, tribute drafts, and
+// either chain.
 
 use pso_circuit_core::ownership;
 use std::embedded_curve_ops::EmbeddedCurvePoint;

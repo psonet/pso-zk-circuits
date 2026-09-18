@@ -52,7 +52,7 @@ fn ownership_witness_solves_real_circuit() {
     let (sk, pk) = <PsoV1 as Suite>::Signature::keypair(&mut rng);
     let nonce = Fr::rand(&mut rng);
     let owner = PsoV1::derive_owner(&pk, nonce).unwrap();
-    let binding = PsoV1::binding(&[1u8; 20], &[2u8; 32], 7).unwrap();
+    let binding = PsoV1::binding(&[1u8; 20], &[2u8; 32], 7, 8).unwrap();
     let td = TestNft {
         id: owner,
         owner,
@@ -84,7 +84,7 @@ fn tampered_signature_fails_to_solve() {
     let (sk, pk) = <PsoV1 as Suite>::Signature::keypair(&mut rng);
     let nonce = Fr::rand(&mut rng);
     let owner = PsoV1::derive_owner(&pk, nonce).unwrap();
-    let binding = PsoV1::binding(&[1u8; 20], &[2u8; 32], 7).unwrap();
+    let binding = PsoV1::binding(&[1u8; 20], &[2u8; 32], 7, 8).unwrap();
     let td = TestNft {
         id: owner,
         owner,

@@ -56,3 +56,15 @@ codegen-units = 16
 opt-level = 3
 overflow-checks = false
 debug = false
+
+# TEMPORARY, remove in the same pull request that lands the published release.
+#
+# The six-element binding lives in pso-protocol and is not on crates.io yet, so
+# `pso-protocol = "0.9"` above cannot resolve to it. This patch points the whole
+# graph at the branch carrying it, which is what lets CI build and test this
+# change before its dependency is published.
+#
+# When pso-protocol releases, bump the version requirement above and delete this
+# section. Leaving it in place would pin the build to a branch that can move.
+[patch.crates-io]
+pso-protocol = { git = "ssh://git@github.com/psonet/pso-protocol.git", branch = "feat/binding-l2-chain-id" }
