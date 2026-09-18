@@ -72,9 +72,10 @@ pub fn verify_schnorr_grumpkin(
 ///    -- proves the prover knows the Grumpkin secret key matching
 ///    `pk` and has signed a per-NFT message that binds the proof to a
 ///    specific `(nft_hash, nonce)` triple AND the submission's
-///    `binding_hash`. Because `binding_hash = Poseidon4(sender, tdId,
-///    chainId)`, a proof minted for one `(sender, tdId, chainId)` tuple
-///    produces a different pre-hash and fails verification under any
+///    `binding_hash`. Because `binding_hash = Poseidon6(DOMAIN, sender,
+///    tdId_lo, tdId_hi, hostChainId, l2ChainId)`, a proof minted for one
+///    `(sender, tdId, hostChainId, l2ChainId)` tuple produces a different
+///    pre-hash and fails verification under any
 ///    other -- this is what makes the proof non-replayable across
 ///    callers, tribute drafts, and chains.
 ///
@@ -92,10 +93,14 @@ pub fn verify_schnorr_grumpkin(
 /// - `owner` (public): claimed Poseidon3 commitment from the NFT's
 ///   on-chain `derivedOwner` field.
 /// - `nft_hash` (public): per-NFT entity hash.
-/// - `binding_hash` (public): `Poseidon4(sender, tdId, chainId)` for
-///   the whole submission -- identical across every SU in one
-///   aggregation. The on-chain verifier recomputes it via precompile
-///   `0x0210` from `msg.sender`, `tributeDraftId`, and `block.chainid`.
+/// - `binding_hash` (public): `Poseidon6(DOMAIN, sender, tdId_lo,
+///   tdId_hi, hostChainId, l2ChainId)` for the whole submission --
+///   identical across every SU in one aggregation. This circuit never
+///   recomputes it; it folds the value it is handed into the signed
+///   message, so the preimage can change without moving this ACIR.
+///   The on-chain verifier recomputes it via precompile
+///   `0x0210` from `msg.sender`, `tributeDraftId`, the host chain id and
+///   the L2 chain id.
 pub fn verify_ownership_per_su(
     pk: EmbeddedCurvePoint,
     signature: [u8; 64],
@@ -128,8 +133,8 @@ pub fn verify_ownership_per_su(
     //     nonce, binding_hash).to_be_bytes(). The pre-hash binds the
     //     proof to the NFT data, the per-NFT nonce, AND the submission
     //     binding; a replay across NFTs *or* across a different
-    //     (sender, tdId, chainId) produces a different pre-hash and
-    //     fails verification.
+    //     (sender, tdId, hostChainId, l2ChainId) produces a different
+    //     pre-hash and fails verification.
     let pre_hash_fr: Field = hash2::hash_3([nft_hash, nonce, binding_hash]);
     let pre_hash_bytes: [u8; 32] = pre_hash_fr.to_be_bytes();
 

@@ -60,9 +60,11 @@ mise run freeze-circuits        # = cargo run -p xtask -- freeze-circuits
 
 `freeze-circuits` recompiles each head circuit, mints a new frozen version for
 any whose ACIR changed (deprecating the superseded one), derives its
-UltraHonkKeccak VK via `bb`, and updates `manifest.toml`. `BB_VERSION` must match
-the `barretenberg-rs` pin in `pso-zk-backend` so freeze-derived VKs match the FFI
-verifier.
+UltraHonkKeccak VK via `bb`, and updates `manifest.toml`. There is no dry-run:
+it always writes, and an unrecognised flag is refused rather than ignored.
+`BB_VERSION` in `mise.toml` must match the exact `barretenberg-rs` pin in the
+root `Cargo.toml`'s `[workspace.dependencies]` (`pso-zk-backend` inherits it
+with `workspace = true`) so freeze-derived VKs match the FFI verifier.
 
 ## Verifying releases
 
@@ -71,7 +73,7 @@ Releases ship sigstore cosign signatures + SLSA build-provenance attestations fo
 Quick check:
 
 ```sh
-TAG=v0.8.0
+TAG=v0.11.0
 ARTIFACT=pso-zk-canonical-${TAG#v}.crate
 gh release download "$TAG" --repo psonet/pso-zk-circuits \
   --pattern "$ARTIFACT" --pattern "$ARTIFACT.sig" --pattern "$ARTIFACT.pem"

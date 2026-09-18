@@ -55,8 +55,7 @@ bytecode is dropped — the preserved `circuit_hash`.
 Rationale: bytecode is a *proving* artifact (a retired prover ships its own);
 verification needs only the VK. So a superseded version keeps its VK to keep
 verifying in-flight proofs, and a fully-obsolete one drops everything. The
-chain-side versioning/rollout design is in
-[`../docs/circuit-versioning.md`](../docs/circuit-versioning.md).
+chain-side versioning and rollout policy is not documented in this repository.
 
 ## Evolving a circuit
 

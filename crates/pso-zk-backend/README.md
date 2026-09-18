@@ -63,9 +63,9 @@ Its build script resolves it, in order:
 
    | Host / target triple | bb arch |
    | -------------------- | ------- |
-   | `x86_64-unknown-linux-gnu` | `x86_64-linux` |
+   | `x86_64-unknown-linux-gnu` | `amd64-linux` |
    | `aarch64-unknown-linux-gnu` | `arm64-linux` |
-   | `x86_64-apple-darwin` | `x86_64-darwin` |
+   | `x86_64-apple-darwin` | `amd64-darwin` |
    | `aarch64-apple-darwin` | `arm64-darwin` |
    | `aarch64-apple-ios` | `arm64-ios` |
    | `aarch64-apple-ios-sim` | `arm64-ios-sim` |
@@ -80,17 +80,23 @@ prebuilt download + a first-run SRS fetch).
 
 ## Building for iOS / Android
 
-Because the prebuilt covers the mobile triples, cross-compiling is just a target
-flag — barretenberg-rs fetches the matching `libbb-external.a` automatically:
+Because the prebuilt covers the mobile triples, cross-compiling is a target flag
+— barretenberg-rs fetches the matching `libbb-external.a` automatically — plus
+`--no-default-features`, which is **not** optional here:
 
 ```bash
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim \
                   aarch64-linux-android x86_64-linux-android
 
-cargo build -p pso-zk-backend --target aarch64-apple-ios            # iOS device
-cargo build -p pso-zk-backend --target aarch64-apple-ios-sim        # iOS simulator (Apple Silicon)
-cargo ndk -t arm64-v8a -t x86_64 build -p pso-zk-backend --release  # Android (via cargo-ndk + NDK)
+cargo build -p pso-zk-backend --no-default-features --target aarch64-apple-ios
+cargo build -p pso-zk-backend --no-default-features --target aarch64-apple-ios-sim
+cargo ndk -t arm64-v8a -t x86_64 build -p pso-zk-backend --release --no-default-features
 ```
+
+The default feature set includes `with-network-srs`, which pulls `reqwest` and a
+tokio runtime and makes a missing SRS a blocking HTTP fetch. On a phone that
+fetch panics. With the feature off the dependency is gone, a missing SRS is a
+hard error instead, and you must supply the CRS yourself — see [SRS](#srs).
 
 ### When you must rebuild barretenberg yourself
 
@@ -113,10 +119,16 @@ its proofs/VKs stay compatible with the canonical artifacts.
 
 ## SRS
 
-The prover/verifier needs the Aztec CRS (structured reference string). The
-backend uses a local cache and falls back to downloading the CRS, **verifying the
-G1 prefix against a pinned SHA-256** before trusting it. Pinned sizes live in
-`barretenberg::srs`; an unpinned size logs a warning to stderr.
+The prover/verifier needs the Aztec CRS (structured reference string). With the
+default `with-network-srs` feature the backend uses a local cache and falls back
+to downloading the CRS, **verifying the G1 prefix against a pinned SHA-256**
+before trusting it. Pinned sizes live in `barretenberg::srs`; an unpinned size
+logs a warning to stderr.
+
+Built `--no-default-features` there is no download path at all, so the CRS has to
+be on disk and pointed at explicitly with `set_srs_path` (re-exported from the
+crate root) before proving. A missing file is then an error rather than a fetch.
+That is the required sequence for the mobile builds above.
 
 ## Building & testing
 

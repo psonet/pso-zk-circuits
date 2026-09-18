@@ -16,7 +16,9 @@
 // stored `derivedOwner` field and the entity hash reconstructed from
 // the NFT's other fields (see `pso_protocol::nft::compute_*_hash`),
 // and `binding_hash` via precompile `0x0210` from `msg.sender`,
-// `tributeDraftId`, and `block.chainid`.
+// `tributeDraftId`, the host chain id and the L2 chain id. The two ids
+// are folded separately, so a proof minted for one L2 does not verify as
+// another's under this same circuit.
 
 use pso_circuit_core::ownership;
 use std::embedded_curve_ops::EmbeddedCurvePoint;
