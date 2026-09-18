@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.13.0 - 2026-09-18
+#### Features
+- (**xtask**) add the reproduction gate and the CI job that enforces it - (111c70a) - Anton Velichko
+#### Bug Fixes
+- (**mise**) run the pipefail tasks under bash - (ac455d9) - Anton Velichko
+- (**release**) keep Cargo.lock in step with the version bump - (a8fd63e) - Anton Velichko
+
+- - -
+
 ## v0.12.0 - 2026-09-18
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>follow the six-element submission binding - (784ebce) - Anton Velichko
