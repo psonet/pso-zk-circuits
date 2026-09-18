@@ -79,10 +79,9 @@ jobs:
   #
   # Runs cargo-deny on the host (not the EmbarkStudios container
   # action) so cargo-metadata can use the host's git config to
-  # fetch the workspace's `ssh://git@github.com/...` deps. All of
-  # those repos (psonet/pso-protocol, psonet/noir_rs,
-  # noir-lang/noir) are public, so a no-auth ssh -> https rewrite
-  # is sufficient — no PAT or credential helper needed.
+  # fetch the workspace's git deps. The only one left is the public
+  # `https://github.com/noir-lang/noir` — pso-protocol resolves from
+  # crates.io now — so no PAT or credential helper is needed.
   # --------------------------------------------------------------
   cargo-deny:
     name: cargo-deny
@@ -345,10 +344,10 @@ jobs:
         if: steps.stage.outputs.has_artifacts == 'true'
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # pin-target: v3
 
-      # Matrix-aware signing: signs whichever subset of mobile slices +
-      # the .crate + SHA256SUMS made it into release/. continue-on-error
-      # on the cross-build matrix legs means we sign what we have, not
-      # what we expected to have. Skips any pre-existing .sig/.pem.
+      # Signs whatever made it into release/: the .crate and SHA256SUMS.
+      # `publish-crates-io` is continue-on-error and the crate is staged only
+      # if it succeeded, so "nothing to sign" is a reachable state — see
+      # verify-release, which fails on it. Skips any pre-existing .sig/.pem.
       - name: Sign release artifacts (cosign keyless)
         if: steps.stage.outputs.has_artifacts == 'true'
         run: |
@@ -395,26 +394,6 @@ jobs:
             echo "### crates.io"
             echo
             echo "- \`pso-zk-canonical-${TAG#v}.crate\` — byte-identical to the crates.io upload."
-            echo
-            echo "### Mobile slices"
-            echo
-            echo "Pre-built \`libpso_zk_circuit_noir\` for iOS + Android targets."
-            echo "Whichever cross-toolchain targets succeeded on this run are"
-            echo "attached below; missing slices indicate a barretenberg-rs"
-            echo "cross-build failure on that target (see workflow logs)."
-            echo
-            echo "#### iOS"
-            echo
-            echo "- \`libpso_zk_circuit_noir.a\` — per-target static lib"
-            echo "  (\`aarch64-apple-ios\`, \`aarch64-apple-ios-sim\`,"
-            echo "  \`x86_64-apple-ios-sim\`)"
-            echo "- \`libpso_zk_circuit_noir.xcframework.zip\` — combined"
-            echo "  xcframework for SwiftPM / Xcode integration"
-            echo
-            echo "#### Android"
-            echo
-            echo "- \`libpso_zk_circuit_noir.so\` — per-ABI shared lib"
-            echo "  (\`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`, \`x86\`)"
             echo
             echo "### Verification"
             echo

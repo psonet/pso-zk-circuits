@@ -1,9 +1,9 @@
 //! `cargo xtask` — canonical-circuit release tooling.
 //!
 //! `freeze-circuits` is the **only** step that runs `nargo`/`bb`. It compiles
-//! the head noir sources under `pso-zk-canonical/noir/` and, for each
+//! the head noir sources under `crates/pso-zk-canonical/noir/` and, for each
 //! circuit whose ACIR changed, mints a new frozen version under
-//! `pso-zk-canonical/resources/circuits/<module>/<version>/` and records
+//! `crates/pso-zk-canonical/resources/circuits/<module>/<version>/` and records
 //! it (status `active`) in `circuits/manifest.toml`.
 //!
 //! When a new version supersedes the previously-active one, the old entry is set
@@ -27,7 +27,9 @@ use base64::Engine;
 use tiny_keccak::{Hasher, Keccak};
 use toml_edit::{value, DocumentMut, Table};
 
-/// Vendored noir bin circuits: (package dir under `noir/`, nargo package name).
+/// The noir bin circuits: (package dir under `noir/`, nargo package name).
+/// `noir/` also holds `pso-circuit-core`, a shared library package, which is
+/// not listed here because it produces no ACIR of its own.
 const CIRCUITS: &[(&str, &str)] = &[
     ("pso-ownership-circuit", "ownership_proof"),
     ("pso-flat-aggregation-circuit-n1", "flat_aggregation_n1"),
@@ -53,6 +55,21 @@ fn main() {
 }
 
 fn freeze(flags: &[String]) {
+    // Reject what we do not understand. `any(|f| f == ...)` silently ignores
+    // an unknown flag, so `freeze-circuits --check` — a plausible thing to
+    // type, and a command the sibling outbe-circuits repo really has — used to
+    // run a REAL freeze: needs nargo and bb, and rewrites manifest.toml and
+    // mints a version if any ACIR moved. There is no dry-run mode here; a
+    // typo must not silently become a write.
+    if let Some(unknown) = flags
+        .iter()
+        .find(|f| !matches!(f.as_str(), "--semantic" | "--abi-change"))
+    {
+        eprintln!("unknown flag {unknown:?}");
+        eprintln!("usage: cargo xtask freeze-circuits [--abi-change | --semantic]");
+        eprintln!("note: there is no --check; freeze-circuits always writes.");
+        std::process::exit(2);
+    }
     let semantic = flags.iter().any(|f| f == "--semantic");
     let abi_change = flags.iter().any(|f| f == "--abi-change");
 

@@ -39,9 +39,9 @@ ignore = [
     # in pso-poseidon, pso-vdf, and pso-protocol.
     "RUSTSEC-2024-0436",
     # bincode 1.x is unmaintained (upstream points at 2.x). Pulled
-    # in transitively via noir_rs; we can't unilaterally migrate
+    # in transitively via the noir deps; we can't unilaterally migrate
     # the noir-lang side. Track upstream and remove this ignore
-    # once noir_rs adopts bincode 2.
+    # once upstream noir adopts bincode 2.
     "RUSTSEC-2025-0141",
 ]
 
@@ -70,7 +70,7 @@ allow = [
     #                canonical VK derivation key + transitively by
     #                cryptographic deps)
     #   - CDLA-Permissive-2.0 : `webpki-roots` (TLS cert bundle via
-    #                           reqwest in noir_rs)
+    #                           reqwest in the noir deps)
     "MPL-2.0",
     "CC0-1.0",
     "CDLA-Permissive-2.0",
@@ -91,7 +91,7 @@ deny = []
 # pins different versions than the k256 0.14-rc line and the older
 # ark-* / pso-* lines, and there's no single bump on our side that
 # consolidates them. Each entry will become removable once the
-# corresponding upstream catches up; revisit on every noir_rs /
+# corresponding upstream catches up; revisit on every noir /
 # k256 / ark-* version bump.
 skip = [
     # rand 0.8 (noir, ark-*, older crypto) vs 0.9 (k256 0.14-rc) vs 0.10 (k256 build).
