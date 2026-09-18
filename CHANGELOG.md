@@ -2,6 +2,23 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.12.0 - 2026-09-18
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>follow the six-element submission binding - (784ebce) - Anton Velichko
+#### Bug Fixes
+- (**xtask**) look for the canonical crate under crates/ - (e26beea) - Anton Velichko
+- clear the clippy and advisory failures blocking CI - (24e6fe4) - Anton Velichko
+#### Documentation
+- make the docs describe what the code does - (460b3d8) - Anton Velichko
+#### Build system
+- consume the published pso-protocol 0.10 - (c5ad99d) - Anton Velichko
+#### Continuous Integration
+- refuse to publish under a dependency patch, fix stale names - (b128538) - Anton Velichko
+#### Style
+- bind the chunk slices so both rustfmt versions agree - (e7b2054) - Anton Velichko
+
+- - -
+
 ## v0.11.0 - 2026-06-23
 #### Features
 - bump pso-protocol 0.8 -> 0.9 (canonical sorted-set entity hash) - (ea29ad1) - Anton Velichko
