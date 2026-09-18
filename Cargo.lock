@@ -1857,8 +1857,9 @@ dependencies = [
 
 [[package]]
 name = "pso-protocol"
-version = "0.9.0"
-source = "git+ssh://git@github.com/psonet/pso-protocol.git?branch=feat%2Fbinding-l2-chain-id#e465bebb27b0710960a0b35d1d942fa0a8313df0"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ea96132edd119725dc6a60f5b62623fbb1fb88c912cfe7cee1432a57af912cc"
 dependencies = [
  "ark-bn254",
  "ark-ec",
