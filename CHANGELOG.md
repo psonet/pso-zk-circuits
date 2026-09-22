@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.14.0 - 2026-09-22
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**deps**) take pso-protocol 0.11, and refresh hex-literal/toml/criterion (#18) - (8ad28ee) - Velichko Anton
+#### Documentation
+- derive the verify recipe's tag instead of hard-coding it - (76c121b) - Anton Velichko
+
+- - -
+
 ## v0.13.0 - 2026-09-18
 #### Features
 - (**xtask**) add the reproduction gate and the CI job that enforces it - (111c70a) - Anton Velichko
