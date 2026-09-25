@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.14.1 - 2026-09-25
+#### Bug Fixes
+- (**ci**) print repo-relative paths in the coverage table - (4589cb6) - Anton Velichko
+- (**ci**) give every repo the same supply-chain job and test runner - (82b41ad) - Anton Velichko
+- (**ci**) report the circuit size change on circuit pull requests - (d58e149) - Anton Velichko
+- (**ci**) give the coverage job the C++ toolchain it needs - (903cf1f) - Anton Velichko
+- (**ci**) grant the coverage job permission to write its PR comment - (1832131) - Anton Velichko
+- (**ci**) add the shared psonet quality gates - (2f41db8) - Anton Velichko
+
+- - -
+
 ## v0.14.0 - 2026-09-22
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>(**deps**) take pso-protocol 0.11, and refresh hex-literal/toml/criterion (#18) - (8ad28ee) - Velichko Anton

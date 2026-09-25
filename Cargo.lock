@@ -1886,7 +1886,7 @@ dependencies = [
 
 [[package]]
 name = "pso-zk-backend"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "acir",
  "acvm",
@@ -1906,7 +1906,7 @@ dependencies = [
 
 [[package]]
 name = "pso-zk-canonical"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "ark-bn254",
  "ark-ff",
