@@ -128,6 +128,9 @@ jobs:
               - 'crates/pso-zk-canonical/circuits/manifest.toml'
               - 'xtask/**'
               - 'mise.toml'
+              # A change to how sizes are measured should also produce a
+              # comparison, not silently skip one.
+              - '.github/scripts/circuit_sizes.py'
 
   # --------------------------------------------------------------
   # The reproduction gate: every committed `active` artifact must come
@@ -296,6 +299,100 @@ jobs:
       - run: cargo install zepter --locked --version ^0.13
       - run: cargo metadata --format-version=1 --all-features --locked > /dev/null
       - run: zepter run check
+
+  # Circuit size, compared against the pull request's base.
+  #
+  # Gate count is the cost model: it sets proving time, peak memory and the VK,
+  # and it moves silently — a helper that reads as equivalent can push a
+  # circuit past a power-of-two boundary and double it. Opcodes move witness
+  # generation. Neither shows up in a diff, so this measures both and comments.
+  #
+  # Reports, never gates: it is outside `ci`'s needs, so a size change is a
+  # conversation in review rather than a red build. Runs only when the path
+  # filter says circuit sources moved, because it compiles every circuit twice.
+  circuit-size:
+    name: circuit size
+    runs-on: ubuntu-latest
+    needs: [resolve, changes]
+    if: >
+      github.event_name == 'pull_request' &&
+      needs.resolve.outputs.release_tag == '' &&
+      needs.changes.outputs.circuits == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The base as the pull request actually targets it, kept beside the head
+      # checkout so both are measured with one toolchain.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - uses: jdx/mise-action@v4
+        with:
+          install: false
+
+      # Same cache key shape as freeze-check, so the two jobs share the
+      # toolchain download rather than each paying for it.
+      - name: Cache the Noir toolchain
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nargo
+            ~/.bb
+          key: noir-toolchain-${{ hashFiles('mise.toml') }}
+
+      - name: Install nargo + bb at the pinned versions
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: mise run install:zk-toolchain
+
+      - name: Cache the bb CRS
+        uses: actions/cache@v4
+        with:
+          path: ~/.bb-crs
+          key: bb-crs-${{ hashFiles('mise.toml') }}
+
+      - name: Measure this branch
+        run: |
+          python3 .github/scripts/circuit_sizes.py collect \
+            crates/pso-zk-canonical/noir \
+            --nargo "$HOME/.nargo/bin/nargo" --bb "$HOME/.bb/bb" \
+            -o head-sizes.json
+
+      # The base is measured with the HEAD copy of the script, so a change to
+      # the measurement itself cannot read as a change in the circuits.
+      - name: Measure the base
+        run: |
+          python3 .github/scripts/circuit_sizes.py collect \
+            base/crates/pso-zk-canonical/noir \
+            --nargo "$HOME/.nargo/bin/nargo" --bb "$HOME/.bb/bb" \
+            -o base-sizes.json
+
+      - name: Render the comparison
+        run: |
+          python3 .github/scripts/circuit_sizes.py report \
+            base-sizes.json head-sizes.json \
+            --base-ref "${{ github.base_ref }}" > circuit-size.md
+          cat circuit-size.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Circuit size PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: circuit-size
+          path: circuit-size.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: circuit-sizes
+          path: |
+            base-sizes.json
+            head-sizes.json
+            circuit-size.md
+          retention-days: 14
 
   # Coverage. Reported, never enforced: a threshold set before anyone has seen
   # the number is a guess. Deliberately outside the `ci` aggregator's needs, so
