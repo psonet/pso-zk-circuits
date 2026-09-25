@@ -72,36 +72,57 @@ jobs:
           echo "release_tag=${tag}"
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
 
-  # --------------------------------------------------------------
-  # Supply-chain enforcement. Runs on every PR + nightly cron @ 04:00 UTC.
-  # Independent of the rest of the pipeline so a fresh advisory surfacing
-  # nightly is visible without rerunning the noir-heavy check job.
+  # --------------------------------------------------------------- #
+  # Supply chain. One job, the same four questions in every psonet repo:
+  # are the licences ones we may ship, do the git sources resolve to hosts
+  # we trust, are duplicate versions under control, and is anything in the
+  # tree the subject of a published advisory.
   #
-  # Runs cargo-deny on the host (not the EmbarkStudios container
-  # action) so cargo-metadata can use the host's git config to
-  # fetch the workspace's git deps. The only one left is the public
-  # `https://github.com/noir-lang/noir` — pso-protocol resolves from
-  # crates.io now — so no PAT or credential helper is needed.
-  # --------------------------------------------------------------
-  cargo-deny:
-    name: cargo-deny
+  # Runs on every PR and on the nightly cron, so an advisory published
+  # against a dependency that nobody touched still surfaces within a day.
+  # --------------------------------------------------------------- #
+  supply-chain:
+    name: supply chain
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Rewrite ssh:// psonet git URLs to https://
         run: git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: cargo
-
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny
+          tool: cargo-deny,cargo-audit
+      # zepter has no install-action manifest, so it builds from source here.
+      - name: Install zepter
+        run: cargo install zepter --locked --version ^0.13
 
-      - name: cargo deny check all
-        run: cargo deny check all
+      # Licences, git sources and bans gate. All three pass on this tree
+      # today, so a regression here is a new fact and fails the build.
+      - name: cargo deny (licenses, sources, bans)
+        run: cargo deny --all-features check licenses sources bans
+
+      # Gates. This tree carries no advisories today, which is the state the
+      # repo's own `cargo deny check all` already held it to; splitting the
+      # command must not quietly relax that. A new advisory here is either a
+      # dependency to upgrade or an entry with a reason in deny.toml's
+      # [advisories].
+      - name: cargo deny (advisories)
+        run: cargo deny --all-features check advisories
+
+      # A separate RUSTSEC database revision from cargo-deny's, so a
+      # freshly-published advisory surfaces from whichever updates first.
+      # Reports rather than gates: the gate above is the one with a
+      # deliberate ignore list behind it.
+      - name: cargo audit
+        continue-on-error: true
+        run: cargo audit || echo "::warning::cargo audit found advisories. Not gating yet."
+
+      # Eagerly resolve before zepter so a fetch failure reads as a fetch
+      # failure rather than a zepter parse error.
+      - name: cargo metadata
+        run: cargo metadata --format-version=1 --all-features --locked > /dev/null
+
+      - name: zepter
+        run: zepter run check
 
   # --------------------------------------------------------------
   # Which parts of the tree moved. The freeze check installs the Noir
@@ -251,8 +272,33 @@ jobs:
             -A clippy::missing_errors_doc \
             -A clippy::missing_panics_doc
 
-      - name: cargo test --workspace
-        run: cargo test --workspace
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      # --profile ci: retries, fail-fast off and the JUnit report that the
+      # flaky reporter below reads. Same runner, same profile name, in every
+      # psonet repo.
+      - name: Test (nextest)
+        run: cargo nextest run --workspace --profile ci
+
+      # Retries turn a slow runner into a pass and hide that the test is
+      # unstable. This reads the JUnit report back and warns per test that only
+      # survived on a retry. Never fails the job.
+      - name: Report flaky tests
+        if: always()
+        run: |
+          command -v python3 >/dev/null 2>&1 || {
+            echo "::notice::python3 unavailable; skipping the flaky-test report"
+            exit 0
+          }
+          python3 .github/scripts/warn_flaky.py target/nextest/ci/junit.xml
+
+      # nextest builds and runs each test in its own process, which is what
+      # makes retries and partitioning possible — but it cannot run doctests.
+      # Without this line they would silently stop being tested.
+      - name: cargo test --doc
+        run: cargo test --doc --workspace
 
   # --------------------------------------------------------------
   # Version bump + tag. Only on push:main, only after `check` is
@@ -285,20 +331,6 @@ jobs:
       # failure. `--workspace` follows whatever the manifests mark publishable,
       # so adding a crate does not mean editing this line.
       - run: cargo semver-checks check-release --workspace --all-features
-
-  # Cargo features declared on a workspace crate but not propagated to a
-  # dependency exposing the same one. Builds cleanly today and silently
-  # compiles that dependency in the wrong shape.
-  zepter:
-    name: zepter
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      # No install-action manifest for zepter, so it builds from source.
-      - run: cargo install zepter --locked --version ^0.13
-      - run: cargo metadata --format-version=1 --all-features --locked > /dev/null
-      - run: zepter run check
 
   # Circuit size, compared against the pull request's base.
   #
@@ -461,7 +493,7 @@ jobs:
     name: ci
     runs-on: ubuntu-latest
     if: always()
-    needs: [cargo-deny, check, freeze-check, typos, semver, zepter]
+    needs: [supply-chain, check, freeze-check, typos, semver]
     steps:
       - name: Check dependency results
         env:
