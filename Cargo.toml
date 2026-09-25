@@ -56,3 +56,10 @@ codegen-units = 16
 opt-level = 3
 overflow-checks = false
 debug = false
+
+# Rustdoc lints. An intra-doc link that stops resolving is a silent docs
+# regression — nothing reads the rendered output, so nothing notices. CI runs
+# `cargo doc` with `-D warnings`, which turns a dead [`Type`] link into a
+# build failure instead.
+[workspace.lints.rustdoc]
+all = "warn"

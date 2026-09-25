@@ -53,3 +53,8 @@ criterion = { workspace = true }
 [[bench]]
 name = "proving"
 harness = false
+
+# Inherit [workspace.lints]. Without this the table at the workspace root
+# applies to nothing.
+[lints]
+workspace = true

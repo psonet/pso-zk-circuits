@@ -20,3 +20,8 @@ ark-std = { workspace = true }
 ark-bn254 = { workspace = true }
 # Compile-time `hex!("..")` -> `[u8; N]` for the generated circuit/vk hashes.
 hex-literal = { workspace = true }
+
+# Inherit [workspace.lints]. Without this the table at the workspace root
+# applies to nothing.
+[lints]
+workspace = true
